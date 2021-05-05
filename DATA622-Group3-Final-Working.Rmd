@@ -1,0 +1,129 @@
+---
+title: "CUNY SPS DATA 622 - Machine Learning and Big Data"
+subtitle: 'Spring 2021 - Group 3 - Final'
+author: "Maryluz Cruz, Amber Ferger, Tony Mei, and Charlie Rosemond"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  html_document:
+    theme: cerulean
+    highlight: pygments
+    toc: 3
+urlcolor: purple
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, error = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+### R Packages
+
+The `R` language is used to facilitate data modeling. The main `R` packages used for data wrangling, visualization, and graphics are listed below.
+
+```{r libraries, echo=TRUE}
+# Required R packages
+library(tidyverse)
+library(kableExtra)
+library(skimr)
+library(GGally)
+library(corrplot)
+library(e1071)
+library(dummies)
+library(caret)
+
+```
+
+### Overview {.tabset .tabset-fade .tabset.-pills}
+
+This analysis employs a variety of classification algorithms to predict fetal health status using a cardiotocogram (CTG) dataset. It begins with exploratory data analysis (EDA) and preprocessing followed by a series of predictive models. It ends with an evaluation of model performance.
+
+All references and a technical appendix of all R code are available at the end of this report.
+
+***
+<center> **PROJECT SECTIONS** </center>
+***
+
+### Exploratory Data Analysis (EDA)
+
+EDA uses summary statistics and univariate and bivariate visualizations to summarize the CTG dataset, its response, and the initial set of possible features. This information will inform preprocessing of the dataset prior to modeling.
+
+#### Dataset
+
+Sourced from a 2000 research project and deidentified, the dataset consists of samples describing selected health characteristics of individual fetuses. It contains 2,126 samples and 22 total variables, including a target `fetal_health` with three classes: 'Normal', 'Suspect', and 'Pathological'. The available features for modeling range from the fetal heart rate (FHR) baseline (`baseline_value`) to the number of prolonged decelerations per second (`prolonged_decelerations`) to varied characteristics of FHR distribution (`histogram_*`). All variables in the dataset are listed and described below.
+
+*Dataset Descriptions*
+Variable | Description
+------|------
+'baseline_value' | Fetal heart rate (FHR) baseline (beats per minute)
+'accelerations' | # of accelerations per second
+'fetal_movement' | # of fetal movements per second
+'uterine_contractions' | # of uterine contractions per second
+'light_decelerations' | # of light decelerations per second
+'severe_decelerations' | # of severe decelerations per second
+'prolonged_decelerations' | # of prolonged decelerations per second
+'abnormal_short_var' | % of time with abnormal short term variability
+'mean_short_var' | Mean value of short term variability
+'perc_time_long_var' | % of time with abnormal long term variability
+'mean_long_var' | Mean value of long term variability
+'histogram_width'| Width of FHR histogram
+'histogram_min' | Minimum (low frequency) of FHR histogram
+'histogram_max' | Maximum (high frequency) of FHR histogram
+'histogram_peaks' | # of histogram peaks
+'histogram_zeroes' | # of histogram zeroes
+'histogram_mode' | Histogram mode
+'histogram_mean' | Histogram mean
+'histogram_median' | Histogram median
+'histogram_variance' | Histogram variance
+'histogram_tendency' | Histogram tendency
+'fetal_health' | 1 (Normal), 2 (Suspect), 3 (Pathological) - TARGET
+
+
+```{r load, message=FALSE, warning=FALSE}
+df <- read_csv('https://raw.githubusercontent.com/chrosemo/DATA622-Group3-Final/main/fetal_health.csv')
+df <- df %>% rename(baseline_value = 'baseline value',
+                    prolonged_decelerations = 'prolongued_decelerations',
+                    abnormal_short_var = 'abnormal_short_term_variability',
+                    mean_short_var = 'mean_value_of_short_term_variability',
+                    perc_time_long_var = 'percentage_of_time_with_abnormal_long_term_variability',
+                    mean_long_var = 'mean_value_of_long_term_variability',
+                    histogram_peaks = 'histogram_number_of_peaks',
+                    histogram_zeroes = 'histogram_number_of_zeroes')
+```
+
+```{r summarystats}
+skim(df) %>% 
+  dplyr::select(-n_missing, -numeric.sd, -numeric.p25, -numeric.p75)
+```
+
+
+### Preprocessing
+
+#### Imputation
+
+#### Transformation
+
+
+### Modeling
+
+#### Sub
+
+### Model Comparison
+
+
+### Works Cited
+
+https://www.kaggle.com/andrewmvd/fetal-health-classification
+
+Ayres de Campos et al. (2000) SisPorto 2.0 A Program for Automated Analysis of Cardiotocograms. J Matern Fetal Med 5:311-318
+
+
+### Code Appendix
+
+The code chunks below represent the R code called in order during the analysis. They are reproduced in the appendix for review and comment.
+
+```{r appendix, include=FALSE}
+```
+```{r load}
+```
+```{r summarystats}
+```
+
