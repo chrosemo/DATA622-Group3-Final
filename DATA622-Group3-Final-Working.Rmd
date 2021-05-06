@@ -188,4 +188,14 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r summarystats}
 ```
+```{r boxplots1, fig.cap='Feature boxplots by fetal health'}
+```
+```{r boxplots2, fig.cap='Feature boxplots by fetal health, continued'}
+```
+```{r correlations1, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
+```
+```{r correlations2, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
+```
+```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
+```
 
