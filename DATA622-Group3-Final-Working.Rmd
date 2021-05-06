@@ -24,7 +24,6 @@ The `R` language is used to facilitate data modeling. The main `R` packages used
 library(tidyverse)
 library(kableExtra)
 library(skimr)
-library(GGally)
 library(corrplot)
 library(e1071)
 library(dummies)
@@ -86,14 +85,77 @@ df <- df %>% rename(baseline_value = 'baseline value',
                     perc_time_long_var = 'percentage_of_time_with_abnormal_long_term_variability',
                     mean_long_var = 'mean_value_of_long_term_variability',
                     histogram_peaks = 'histogram_number_of_peaks',
-                    histogram_zeroes = 'histogram_number_of_zeroes')
+                    histogram_zeroes = 'histogram_number_of_zeroes') %>% 
+             mutate(fetal_health = as.factor(fetal_health))
 ```
+
+#### Summary Statistics
 
 ```{r summarystats}
-skim(df) %>% 
-  dplyr::select(-n_missing, -numeric.sd, -numeric.p25, -numeric.p75)
+skim(df) %>% dplyr::select(-n_missing, -numeric.sd, -numeric.p25, -numeric.p75)
 ```
 
+Summary statistics reveal useful information about the dataset. First, the dataset contains zero missing values. This completeness renders imputation, which can rest on tenuous assumptions, unnecessary. Second, beyond the categorical target `fetal_health`, all of the features are numeric, though their scales vary substantially. Thus centering and scaling could facilitate modeling. Third, many features display strong rightward skew, which suggests additional transformation may be necessary as well. And fourth, the classes of `fetal_health` are highly imbalanced. The largest class, "Normal" (1), consists of 1,655 samples compared to 295 samples for "Suspect" (2) and 176 samples for "Pathological" (3). This issue can be mitigated through over- or under-sampling.
+
+#### Feature Distributions
+
+Next comes visualization of the dataset features and their relations to the target `fetal_health`. The following two figures depict sets of feature-specific boxplots by class of `fetal_health`. Broadly, the boxplots reveal clear class-related differences in the distributions of the features.
+
+```{r boxplots1, fig.cap='Feature boxplots by fetal health'}
+df %>% 
+  select(baseline_value:mean_long_var, fetal_health) %>%
+  gather(key = 'variable', value = 'value', -fetal_health) %>%
+  ggplot(aes(x = '', y = value, fill = fetal_health)) +
+    facet_wrap(~ variable, scales = 'free') +
+    geom_boxplot() +
+    coord_flip() +
+    labs(x = NULL, y = NULL) +
+    theme(axis.text.x = element_text(angle = 45)) +
+    scale_fill_manual(name = 'Fetal health',
+                      guide = guide_legend(reverse=TRUE),
+                      labels = c('Normal (1)', 'Suspect (2)', 'Pathological (3)'),
+                      values = c('forestgreen', 'gold', 'red'))
+```
+
+```{r boxplots2, fig.cap='Feature boxplots by fetal health, continued'}
+df %>% 
+  select(histogram_width:histogram_tendency, fetal_health) %>%
+  gather(key = 'variable', value = 'value', -fetal_health) %>%
+  ggplot(aes(x = '', y = value, fill = fetal_health)) +
+    facet_wrap(~ variable, scales = 'free') +
+    geom_boxplot() +
+    coord_flip() +
+    labs(x = NULL, y = NULL) +
+    scale_fill_manual(name = 'Fetal health',
+                      guide = guide_legend(reverse=TRUE),
+                      labels = c('Normal (1)', 'Suspect (2)', 'Pathological (3)'),
+                      values = c('forestgreen', 'gold', 'red'))
+```
+
+#### Feature Correlations
+
+The feature names and descriptions suggest that groups of features are correlated, which could pose problems of collinearity during modeling. Considering the marked differences in feature distributions by class of `fetal_health`, it is appropriate to calculate any correlations separately for each class. Further, across features and classes, distributions are typically skewed, which calls for the non-parametric Spearman's rho. Below are correlation heat maps using Spearman's rho for each of the three classes of `fetal_health`.
+
+```{r correlations1, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
+corrplot(cor(df %>%
+               filter(fetal_health == 1) %>%
+               select(-fetal_health),
+             method = 'spearman'))
+```
+
+```{r correlations2, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
+corrplot(cor(df %>%
+               filter(fetal_health == 2) %>%
+               select(-fetal_health),
+             method = 'spearman'))
+```
+
+```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
+corrplot(cor(df %>%
+               filter(fetal_health == 3) %>%
+               select(-fetal_health),
+             method = 'spearman'))
+```
 
 ### Preprocessing
 
