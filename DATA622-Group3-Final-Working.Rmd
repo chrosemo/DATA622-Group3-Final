@@ -117,6 +117,8 @@ df %>%
                       values = c('forestgreen', 'gold', 'red'))
 ```
 
+The first set of plots focuses on the eleven non-histogram features: `baseline_value`, `accelerations`, `fetal_movement`, `uterine_contractions`, `light_decelerations`, `severe_decelerations`, `prolonged_decelerations`, `abnormal_short_var`, `mean_short_var`, `perc_time_long_var`, and `mean_long_var`. There are clear differences across classes of `fetal_health`. Notably, the IQRs of the distributions of  `abnormal_short_var` and `accelerations` for the "Normal" class show minimal overlap with their counterparts for the other two classes. Features `light_decelerations` and `baseline_value` possess similar relationships for the "Suspect" class, as does `prolonged_decelerations` for the "Pathological" class. Skewness is common across features, particularly for `fetal_movement` and `severe_decelerations`, though level of skewness tends to vary by class within features (e.g., "Normal" for `perc_time_long_var`).
+
 ```{r boxplots2, fig.cap='Feature boxplots by fetal health, continued'}
 df %>% 
   select(histogram_width:histogram_tendency, fetal_health) %>%
@@ -132,9 +134,11 @@ df %>%
                       values = c('forestgreen', 'gold', 'red'))
 ```
 
+The second set of plots focuses on the ten histogram features: `histogram_width`, `histogram_min`, `histogram_max`, `histogram_peaks`, `histogram_zeroes`, `histogram_mode`, `histogram_mean`, `histogram_median`, `histogram_variance`, and `histogram_tendency`. Several observations jump out. First, the three measure of central tendency features show different distributions across classes of `fetal_health`, but those distributions are similar regardless of measure. Second, there is less skewness among this set of features, though it is still present and is substantial for `histogram_peaks`, `histogram_variance`, and `histogram_zeroes`; there are particular class differences in variance. And third, for `histogram_tendency`, the distribution for the "Pathological" class is predominantly negative versus the predominantly positive distributions for the "Normal" and "Suspect" classes.
+
 #### Feature Correlations
 
-The feature names and descriptions suggest that groups of features are correlated, which could pose problems of collinearity during modeling. Considering the marked differences in feature distributions by class of `fetal_health`, it is appropriate to calculate any correlations separately for each class. Further, across features and classes, distributions are typically skewed, which calls for the non-parametric Spearman's rho. Below are correlation heat maps using Spearman's rho for each of the three classes of `fetal_health`.
+The feature names and descriptions suggest that groups of features are correlated, which could pose problems of collinearity during modeling. Considering the marked differences in feature distributions by class of `fetal_health`, it is appropriate to calculate any correlations separately for each class. Further, across features and classes, distributions are typically skewed, which calls for the non-parametric Spearman's rho. Below are correlation heat maps using Spearman's rho for all features and by class of `fetal_health`.
 
 ```{r correlations1, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
 corrplot(cor(df %>%
@@ -143,6 +147,8 @@ corrplot(cor(df %>%
              method = 'spearman'))
 ```
 
+Several patterns stand out for the "Normal" class. Understandably, the measure of central tendency features are highly positively correlated with one another but also with `baseline_value`. Likewise, the histogram shape features show notably strong correlations, including the negative correlations between `histogram_min` and each of `histogram_width`, `histogram_peaks`, and `histogram_variance`, and the positive correlations between `histogram_width` and each of `histogram_max`, `histogram_peaks`, and `histogram_variance`. Other features with somewhat strong correlations across features are `light_decelerations` and `mean_short_var`.
+
 ```{r correlations2, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
 corrplot(cor(df %>%
                filter(fetal_health == 2) %>%
@@ -150,12 +156,16 @@ corrplot(cor(df %>%
              method = 'spearman'))
 ```
 
+The heat map for the "Suspect" class repeats the general "Normal" patterns but with higher correlation values. There are stronger relationships between the histogram shape features and the non-histogram features. Additionally, the question marks for `severe_decelerations` indicate that there are zero values for that feature for this class.
+
 ```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
 corrplot(cor(df %>%
                filter(fetal_health == 3) %>%
                select(-fetal_health),
              method = 'spearman'))
 ```
+
+The third heat map, for the "Pathological" class, continues the pattern of stronger correlations. Nearly all previously observed patterns are amplified, whether to the positive or the negative, for this class. A small set of features continues to show relatively weaker correlations, including `baseline_value` (aside from the measure of central tendency features), `accelerations`, `fetal_movement`, `severe_decelerations`, `mean_long_var`, `histogram_zeroes`, and `histogram_tendency`.
 
 ### Preprocessing
 
