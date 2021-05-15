@@ -176,6 +176,114 @@ The third heat map, for the "Pathological" class, continues the pattern of stron
 
 ### Modeling
 
+#### Support Vector Machine(SVM)
+
+Support Vector Machine(SVM) is a supervised machine learning algorithm that can be used for classification or regression problems. Kernel is the technique used to transform ones data and then based on these transformations an optimal boundary is then found between the possible outputs. The data transformations are pretty complex, then separates your data based on the labels or outputs that have been defined.
+
+SVM can be run using the e1071 package or the caret package. In the e1071 package the kernels are Linear, Radial, Polynomial or Sigimoid. In the caret package, the kernels are listed as svmLinear (for linear values), svmRadial (for non linear), and svmPoly (for nonlinear). When it is run within the svm function the kernals are listed differently in the in the e1071 it is listed under kernel, while in the caret package it is listed under method. For the purpose of this project, svmLinear will be used.
+
+```{r}
+# split the data into training set and testing set
+
+set.seed(525)
+which_train <- sample(x = c(TRUE, FALSE), 
+                      size = nrow(df), 
+                      replace = TRUE, 
+                      prob = c(0.7, 0.3))
+
+which_train
+
+train_set <- df[which_train, ]
+test_set <- df[!which_train, ]
+
+train_set$fetal_health <-as.factor(train_set$fetal_health)
+test_set$fetal_health <-as.factor(test_set$fetal_health)
+
+#check if there is NA values
+anyNA(df)
+
+```
+
+```{r}
+summary(df)
+```
+
+Before training the model, the trainControl() method is implemented. This will control all the computational overheads so that it can use the train() function provided by the caret package. The training method will train the data on different algorithms.
+
+
+```{r}
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+```
+
+*The “method” parameter defines the resampling method, in this project the repeatedcv or the  repeated cross-validation method will be used.
+
+*The next parameter is the “number”, this basically holds the number of resampling iterations.
+
+*The “repeats ” parameter contains the sets to compute for the repeated cross-validation with setting number =10 and repeats =3
+
+
+```{r}
+
+svm_Linear <- train(fetal_health ~., data = train_set, method = "svmLinear",
+trControl=trctrl,
+preProcess = c("center", "scale"),
+tuneLength = 10)
+```
+
+```{r}
+svm_Linear
+```
+
+```{r}
+test_pred <- predict(svm_Linear, newdata = test_set)
+test_pred
+```
+
+```{r}
+confusionMatrix(table(test_pred, test_set$fetal_health))
+
+```
+
+The output shows that the model accuracy for test set is 89.55%
+
+#### SVM Improved Model
+
+```{r}
+grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
+svm_Linear_Grid <- train(fetal_health ~., data = train_set, method = "svmLinear",
+trControl=trctrl,
+preProcess = c("center", "scale"),
+tuneGrid = grid,
+tuneLength = 10)
+svm_Linear_Grid
+plot(svm_Linear_Grid)
+
+```
+
+Accuracy was used to select the optimal model using the largest value.
+The final value used for the model was C = 0.1.
+
+Predict another model with Cost value of 0.1.
+
+```{r}
+test_pred_grid <- predict(svm_Linear_Grid, newdata = test_set)
+test_pred_grid
+
+
+```
+
+```{r}
+confusionMatrix(table(test_pred_grid, test_set$fetal_health))
+
+```
+
+The output shows that the improved model accuracy for test set is 90.48%.
+
+#### SVM Conclusion
+SVlinear is chosen in this project because of the linear values of the dataset. Using Cost value of 0.1 to make a more improved SVM model, the improved model predicts accurately with 90.48% for the 3 classifications of fetal health.
+
 #### Sub
 
 ### Model Comparison
@@ -186,6 +294,8 @@ The third heat map, for the "Pathological" class, continues the pattern of stron
 https://www.kaggle.com/andrewmvd/fetal-health-classification
 
 Ayres de Campos et al. (2000) SisPorto 2.0 A Program for Automated Analysis of Cardiotocograms. J Matern Fetal Med 5:311-318
+
+Hamid Rashkiany. “Support Vector Machine In R: Using SVM To Predict Heart Diseases.” Edureka, 15 May 2020, www.edureka.co/blog/support-vector-machine-in-r/. 
 
 
 ### Code Appendix
