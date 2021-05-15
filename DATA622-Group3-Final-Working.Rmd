@@ -282,7 +282,7 @@ confusionMatrix(table(test_pred_grid, test_set$fetal_health))
 The output shows that the improved model accuracy for test set is 90.48%.
 
 #### SVM Conclusion
-SVlinear is chosen in this project because of the linear values of the dataset. Using Cost value of 0.1 to make a more improved SVM model, the improved model predicts accurately with 90.48% for the 3 classifications of fetal health.
+SVlinear is chosen in this project because of the linear values of the dataset. Using Cost value of 0.1 to make a more improved SVM model, the improved model predicts accurately with 90.48% for the 3 classes of fetal health: 'Normal', 'Suspect', and 'Pathological'.
 
 #### Sub
 
