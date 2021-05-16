@@ -28,7 +28,8 @@ library(corrplot)
 library(e1071)
 library(dummies)
 library(caret)
-
+library(gbm)
+#library(DMwR)
 ```
 
 ### Overview {.tabset .tabset-fade .tabset.-pills}
@@ -167,12 +168,60 @@ corrplot(cor(df %>%
 
 The third heat map, for the "Pathological" class, continues the pattern of stronger correlations. Nearly all previously observed patterns are amplified, whether to the positive or the negative, for this class. A small set of features continues to show relatively weaker correlations, including `baseline_value` (aside from the measure of central tendency features), `accelerations`, `fetal_movement`, `severe_decelerations`, `mean_long_var`, `histogram_zeroes`, and `histogram_tendency`.
 
-### Preprocessing
+### Preprocessing steps
 
-#### Imputation
+#### Missingness
 
-#### Transformation
+Data preprocessing often begins by addressing missingness. EDA found that, regardless of feature, this data set contains zero missing values. Completeness is fortunate in that it renders imputation and the associated assumptions unnecessary. 
 
+```{r missingness}
+sum(is.na(df))
+```
+
+#### Skewness
+
+Next comes assessing the features for possible power transformation. Below are skewness statistics for each feature, with negative values reflecting left skewness and positive values reflecting right skewness. Larger values are associated with greater levels of skewness.
+
+Two features show large skew greater than $\pm$ 5: `severe_decelerations` at approximately 17.33; and `fetal_movement` at approximately 7.80. Three additional features show skew greater than $\pm$ 3: `prolonged_decelerations` at approximately 4.32; `histogram_zeroes` at approximately 3.91; and `histogram_variance` at approximately 3.22. All positive, these values reflect the distributions depicted during EDA. They could respond favorably to transformation prior to modeling, though the Box-Cox transformation (results not shown) only negligibly affects the skewness.
+
+```{r skewness, message = FALSE, warning = FALSE}
+knitr::kable(sapply(df[,-22], skewness), col.names = c("Skewness"))
+```
+
+#### Collinearity
+
+Regarding possible collinearity, EDA found that strong correlations are present for each class of`fetal_health`. Spearman's rank coefficient is used to check correlations once more after panning out to include all samples regardless of class. This new plot mimics the one for the "Normal" class on account of the notable imbalance in sample counts. Here again, the measure of central tendency features are highly positively correlated with one another and with `baseline_value`. There are also strong correlations, varying between positive and negative, between the histogram shape features. Others with somewhat strong correlations across features are `light_decelerations` and `mean_short_var`. 
+
+Additionally, three pairs of features have pair-wise correlation values above the 0.90 absolute threshold. For each pair, the feature with the higher mean absolute correlation is recommended for removal from the data set; these three features are `histogram_min`, `histogram_mean`, and `histogram_median`. They are removed prior to modeling.
+
+```{r correlations4}
+corr <- cor(df[,-22], method = "spearman")
+corrplot::corrplot(corr)
+findCorrelation(corr, names = TRUE, exact = TRUE)
+```
+
+#### Outliers
+
+Outliers present in the data set may be a concern depending upon the modeling approach. This analysis uses multinomial regression, which is relatively sensitive to outliers, and SVM and tree-based models, which are less so. The EDA boxplots revealed outliers--defined as samples with values greater than the upper/lower bounds of the inter-quartile range (IQR) plus/minus 1.5 times the IQR--across features by class of `fetal_health`. One possible treatment of these outliers is the spatial sign transformation, which projects all samples onto a unit sphere such that they are all equidistant from the center of that sphere.
+
+#### Train/Test Split
+
+Lastly, the highly correlated features are removed, and the data set is split 70/30 into a training set and a test set. The latter will be held out for validation of the final models.
+
+```{r remove_hicorr}
+df_clean <- as.data.frame(df %>% dplyr::select(-c('histogram_min', 'histogram_mean', 'histogram_median')))
+```
+
+```{r split}
+set.seed(525)
+which_train <- sample(x = c(TRUE, FALSE), 
+                      size = nrow(df_clean), 
+                      replace = TRUE, 
+                      prob = c(0.7, 0.3))
+train_set <- df_clean[which_train, ]
+test_set <- df_clean[!which_train, ]
+```
+####
 
 ### Modeling
 
@@ -182,39 +231,10 @@ Support Vector Machine(SVM) is a supervised machine learning algorithm that can 
 
 SVM can be run using the e1071 package or the caret package. In the e1071 package the kernels are Linear, Radial, Polynomial or Sigimoid. In the caret package, the kernels are listed as svmLinear (for linear values), svmRadial (for non linear), and svmPoly (for nonlinear). When it is run within the svm function the kernals are listed differently in the in the e1071 it is listed under kernel, while in the caret package it is listed under method. For the purpose of this project, svmLinear will be used.
 
-```{r}
-# split the data into training set and testing set
-
-set.seed(525)
-which_train <- sample(x = c(TRUE, FALSE), 
-                      size = nrow(df), 
-                      replace = TRUE, 
-                      prob = c(0.7, 0.3))
-
-which_train
-
-train_set <- df[which_train, ]
-test_set <- df[!which_train, ]
-
-train_set$fetal_health <-as.factor(train_set$fetal_health)
-test_set$fetal_health <-as.factor(test_set$fetal_health)
-
-#check if there is NA values
-anyNA(df)
-
-```
-
-```{r}
-summary(df)
-```
-
 Before training the model, the trainControl() method is implemented. This will control all the computational overheads so that it can use the train() function provided by the caret package. The training method will train the data on different algorithms.
 
-
-```{r}
-
+```{r trcontrol}
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-
 ```
 
 *The “method” parameter defines the resampling method, in this project the repeatedcv or the  repeated cross-validation method will be used.
@@ -224,42 +244,36 @@ trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 *The “repeats ” parameter contains the sets to compute for the repeated cross-validation with setting number =10 and repeats =3
 
 
-```{r}
-
-svm_Linear <- train(fetal_health ~., data = train_set, method = "svmLinear",
+```{r svm1}
+set.seed(525)
+(svm_Linear <- train(fetal_health ~., data = train_set, method = "svmLinear",
 trControl=trctrl,
 preProcess = c("center", "scale"),
-tuneLength = 10)
+tuneLength = 10))
 ```
 
-```{r}
-svm_Linear
+```{r svm1_pred}
+set.seed(525)
+(test_pred <- predict(svm_Linear, newdata = test_set))
 ```
 
-```{r}
-test_pred <- predict(svm_Linear, newdata = test_set)
-test_pred
-```
-
-```{r}
+```{r svm1_matrix}
 confusionMatrix(table(test_pred, test_set$fetal_health))
-
 ```
 
 The output shows that the model accuracy for test set is 89.55%
 
 #### SVM Improved Model
 
-```{r}
+```{r svm2}
+set.seed(525)
 grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
-svm_Linear_Grid <- train(fetal_health ~., data = train_set, method = "svmLinear",
+(svm_Linear_Grid <- train(fetal_health ~., data = train_set, method = "svmLinear",
 trControl=trctrl,
 preProcess = c("center", "scale"),
 tuneGrid = grid,
-tuneLength = 10)
-svm_Linear_Grid
+tuneLength = 10))
 plot(svm_Linear_Grid)
-
 ```
 
 Accuracy was used to select the optimal model using the largest value.
@@ -267,16 +281,13 @@ The final value used for the model was C = 0.1.
 
 Predict another model with Cost value of 0.1.
 
-```{r}
-test_pred_grid <- predict(svm_Linear_Grid, newdata = test_set)
-test_pred_grid
-
-
+```{r svm2_pred}
+set.seed(525)
+(test_pred_grid <- predict(svm_Linear_Grid, newdata = test_set))
 ```
 
-```{r}
+```{r svm2_matrix}
 confusionMatrix(table(test_pred_grid, test_set$fetal_health))
-
 ```
 
 The output shows that the improved model accuracy for test set is 90.48%.
@@ -284,7 +295,45 @@ The output shows that the improved model accuracy for test set is 90.48%.
 #### SVM Conclusion
 SVlinear is chosen in this project because of the linear values of the dataset. Using Cost value of 0.1 to make a more improved SVM model, the improved model predicts accurately with 90.48% for the 3 classes of fetal health: 'Normal', 'Suspect', and 'Pathological'.
 
-#### Sub
+####
+
+#### Gradient Boosting Machines (GBM)
+
+```{r gbm1}
+set.seed(525)
+(gbm1 <- train(x = train_set[,-19],
+                           y = train_set[,19],
+                           method = "gbm",
+                           preProcess = c('center', 'scale'),
+                           trControl = trctrl, #trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
+                           verbose = FALSE))
+gbm1_pred <- predict(gbm1, newdata = test_set)
+postResample(pred = gbm1_pred, obs = test_set$fetal_health)
+```
+```{r gbm1_matrix}
+confusionMatrix(table(gbm1_pred, test_set$fetal_health))
+```
+```{r gbm_grid}
+grid <- expand.grid(.interaction.depth = seq(1, 7, by =2),
+                    .n.trees = seq(100, 1000, by = 100),
+                    .shrinkage = c(0.01, 0.1),
+                    .n.minobsinnode = c(5, 10))
+```
+```{r gbm2}
+set.seed(525)
+(gbm2 <- train(x = train_set[,-19],
+                           y = train_set[,19],
+                           method = "gbm",
+                           tuneGrid = grid,
+                           preProcess = c('center', 'scale'),
+                           trControl = trctrl, # trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
+                           verbose = FALSE))
+gbm2_pred <- predict(gbm2, newdata = test_set)
+postResample(pred = gbm2_pred, obs = test_set$fetal_health)
+```
+```{r gbm2_matrix}
+confusionMatrix(table(gbm2_pred, test_set$fetal_health))
+```
 
 ### Model Comparison
 
@@ -297,6 +346,7 @@ Ayres de Campos et al. (2000) SisPorto 2.0 A Program for Automated Analysis of C
 
 Hamid Rashkiany. “Support Vector Machine In R: Using SVM To Predict Heart Diseases.” Edureka, 15 May 2020, www.edureka.co/blog/support-vector-machine-in-r/. 
 
+Kuhn, M. (2019). *The caret package*. Accessed May 15, 2021, from https://topepo.github.io/caret/.
 
 ### Code Appendix
 
@@ -318,4 +368,37 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
 ```
-
+```{r missingness}
+```
+```{r skewness}
+```
+```{r correlations4}
+```
+```{r remove_hicorr}
+```
+```{r split}
+```
+```{r trcontrol}
+```
+```{r svm1}
+```
+```{r svm1_pred}
+```
+```{r svm1_matrix}
+```
+```{r svm2}
+```
+```{r svm2_pred}
+```
+```{r svm2_matrix}
+```
+```{r gbm1}
+```
+```{r gbm1_matrix}
+```
+```{r gbm_grid}
+```
+```{r gbm2}
+```
+```{r gbm2_matrix}
+```
