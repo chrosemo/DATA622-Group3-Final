@@ -30,6 +30,7 @@ library(dummies)
 library(caret)
 library(gbm)
 #library(DMwR)
+library(vip)
 ```
 
 ### Overview {.tabset .tabset-fade .tabset.-pills}
@@ -307,16 +308,14 @@ set.seed(525)
                            preProcess = c('center', 'scale'),
                            trControl = trctrl, #trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
                            verbose = FALSE))
-gbm1_pred <- predict(gbm1, newdata = test_set)
-postResample(pred = gbm1_pred, obs = test_set$fetal_health)
 ```
-```{r gbm1_matrix}
-confusionMatrix(table(gbm1_pred, test_set$fetal_health))
+```{r gbm1_importance}
+vip(gbm1)
 ```
 ```{r gbm_grid}
-grid <- expand.grid(.interaction.depth = seq(1, 7, by =2),
+grid <- expand.grid(.interaction.depth = c(1, 3, 5),
                     .n.trees = seq(100, 1000, by = 100),
-                    .shrinkage = c(0.01, 0.1),
+                    .shrinkage = c(0.01, 0.05),
                     .n.minobsinnode = c(5, 10))
 ```
 ```{r gbm2}
@@ -328,6 +327,11 @@ set.seed(525)
                            preProcess = c('center', 'scale'),
                            trControl = trctrl, # trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
                            verbose = FALSE))
+```
+```{r gbm2_importance}
+vip(gbm2)
+```
+```{r gbm2_pred}
 gbm2_pred <- predict(gbm2, newdata = test_set)
 postResample(pred = gbm2_pred, obs = test_set$fetal_health)
 ```
@@ -394,11 +398,15 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r gbm1}
 ```
-```{r gbm1_matrix}
+```{r gbm1_importance}
 ```
 ```{r gbm_grid}
 ```
 ```{r gbm2}
+```
+```{r gbm2_importance}
+```
+```{r gbm2_pred}
 ```
 ```{r gbm2_matrix}
 ```
