@@ -7,7 +7,6 @@ output:
   html_document:
     theme: cerulean
     highlight: pygments
-    toc: 3
 urlcolor: purple
 ---
 
@@ -29,11 +28,11 @@ library(e1071)
 library(dummies)
 library(caret)
 library(gbm)
-#library(DMwR)
 library(vip)
+library(MASS)
 ```
 
-### Overview {.tabset .tabset-fade .tabset.-pills}
+## Overview {.tabset .tabset-fade .tabset.-pills}
 
 This analysis employs a variety of classification algorithms to predict fetal health status using a cardiotocogram (CTG) dataset. It begins with exploratory data analysis (EDA) and preprocessing followed by a series of predictive models. It ends with an evaluation of model performance.
 
@@ -52,6 +51,7 @@ EDA uses summary statistics and univariate and bivariate visualizations to summa
 Sourced from a 2000 research project and deidentified, the dataset consists of samples describing selected health characteristics of individual fetuses. It contains 2,126 samples and 22 total variables, including a target `fetal_health` with three classes: 'Normal', 'Suspect', and 'Pathological'. The available features for modeling range from the fetal heart rate (FHR) baseline (`baseline_value`) to the number of prolonged decelerations per second (`prolonged_decelerations`) to varied characteristics of FHR distribution (`histogram_*`). All variables in the dataset are listed and described below.
 
 *Dataset Descriptions*
+
 Variable | Description
 ------|------
 'baseline_value' | Fetal heart rate (FHR) baseline (beats per minute)
@@ -89,13 +89,23 @@ df <- df %>% rename(baseline_value = 'baseline value',
                     histogram_peaks = 'histogram_number_of_peaks',
                     histogram_zeroes = 'histogram_number_of_zeroes') %>% 
              mutate(fetal_health = as.factor(fetal_health))
+
+# order the dependent variable
+df$fetal_health = factor(df$fetal_health, levels = c("1", "2", "3"), ordered = TRUE) 
+
 ```
 
 #### Summary Statistics
 
-```{r summarystats}
+<details>
+  <summary> *Expand for Basic Statistic Summary* </summary>
+  
+```{r eda1}
 skim(df) %>% dplyr::select(-n_missing, -numeric.sd, -numeric.p25, -numeric.p75)
 ```
+
+</details>
+
 
 Summary statistics reveal useful information about the dataset. First, the dataset contains zero missing values. This completeness renders imputation, which can rest on tenuous assumptions, unnecessary. Second, beyond the categorical target `fetal_health`, all of the features are numeric, though their scales vary substantially. Thus centering and scaling could facilitate modeling. Third, many features display strong rightward skew, which suggests additional transformation may be necessary as well. And fourth, the classes of `fetal_health` are highly imbalanced. The largest class, "Normal" (1), consists of 1,655 samples compared to 295 samples for "Suspect" (2) and 176 samples for "Pathological" (3). This issue can be mitigated through over- or under-sampling.
 
@@ -103,9 +113,9 @@ Summary statistics reveal useful information about the dataset. First, the datas
 
 Next comes visualization of the dataset features and their relations to the target `fetal_health`. The following two figures depict sets of feature-specific boxplots by class of `fetal_health`. Broadly, the boxplots reveal clear class-related differences in the distributions of the features.
 
-```{r boxplots1, fig.cap='Feature boxplots by fetal health'}
+```{r eda2, fig.cap='Feature boxplots by fetal health'}
 df %>% 
-  select(baseline_value:mean_long_var, fetal_health) %>%
+  dplyr::select(baseline_value:mean_long_var, fetal_health) %>%
   gather(key = 'variable', value = 'value', -fetal_health) %>%
   ggplot(aes(x = '', y = value, fill = fetal_health)) +
     facet_wrap(~ variable, scales = 'free') +
@@ -121,9 +131,9 @@ df %>%
 
 The first set of plots focuses on the eleven non-histogram features: `baseline_value`, `accelerations`, `fetal_movement`, `uterine_contractions`, `light_decelerations`, `severe_decelerations`, `prolonged_decelerations`, `abnormal_short_var`, `mean_short_var`, `perc_time_long_var`, and `mean_long_var`. There are clear differences across classes of `fetal_health`. Notably, the IQRs of the distributions of  `abnormal_short_var` and `accelerations` for the "Normal" class show minimal overlap with their counterparts for the other two classes. Features `light_decelerations` and `baseline_value` possess similar relationships for the "Suspect" class, as does `prolonged_decelerations` for the "Pathological" class. Skewness is common across features, particularly for `fetal_movement` and `severe_decelerations`, though level of skewness tends to vary by class within features (e.g., "Normal" for `perc_time_long_var`).
 
-```{r boxplots2, fig.cap='Feature boxplots by fetal health, continued'}
+```{r eda3, fig.cap='Feature boxplots by fetal health, continued'}
 df %>% 
-  select(histogram_width:histogram_tendency, fetal_health) %>%
+  dplyr::select(histogram_width:histogram_tendency, fetal_health) %>%
   gather(key = 'variable', value = 'value', -fetal_health) %>%
   ggplot(aes(x = '', y = value, fill = fetal_health)) +
     facet_wrap(~ variable, scales = 'free') +
@@ -142,78 +152,110 @@ The second set of plots focuses on the ten histogram features: `histogram_width`
 
 The feature names and descriptions suggest that groups of features are correlated, which could pose problems of collinearity during modeling. Considering the marked differences in feature distributions by class of `fetal_health`, it is appropriate to calculate any correlations separately for each class. Further, across features and classes, distributions are typically skewed, which calls for the non-parametric Spearman's rho. Below are correlation heat maps using Spearman's rho for all features and by class of `fetal_health`.
 
-```{r correlations1, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
+```{r eda4, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
 corrplot(cor(df %>%
                filter(fetal_health == 1) %>%
-               select(-fetal_health),
+               dplyr::select(-fetal_health),
              method = 'spearman'))
 ```
 
 Several patterns stand out for the "Normal" class. Understandably, the measure of central tendency features are highly positively correlated with one another but also with `baseline_value`. Likewise, the histogram shape features show notably strong correlations, including the negative correlations between `histogram_min` and each of `histogram_width`, `histogram_peaks`, and `histogram_variance`, and the positive correlations between `histogram_width` and each of `histogram_max`, `histogram_peaks`, and `histogram_variance`. Other features with somewhat strong correlations across features are `light_decelerations` and `mean_short_var`.
 
-```{r correlations2, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
+```{r eda5, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
 corrplot(cor(df %>%
                filter(fetal_health == 2) %>%
-               select(-fetal_health),
+               dplyr::select(-fetal_health),
              method = 'spearman'))
 ```
 
 The heat map for the "Suspect" class repeats the general "Normal" patterns but with higher correlation values. There are stronger relationships between the histogram shape features and the non-histogram features. Additionally, the question marks for `severe_decelerations` indicate that there are zero values for that feature for this class.
 
-```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
+```{r eda6, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
 corrplot(cor(df %>%
                filter(fetal_health == 3) %>%
-               select(-fetal_health),
+               dplyr::select(-fetal_health),
              method = 'spearman'))
 ```
 
 The third heat map, for the "Pathological" class, continues the pattern of stronger correlations. Nearly all previously observed patterns are amplified, whether to the positive or the negative, for this class. A small set of features continues to show relatively weaker correlations, including `baseline_value` (aside from the measure of central tendency features), `accelerations`, `fetal_movement`, `severe_decelerations`, `mean_long_var`, `histogram_zeroes`, and `histogram_tendency`.
 
-### Preprocessing steps
 
-#### Missingness
+### Data Preprocessing
+Some modeling methodologies require datasets that do not have missing values and are free of multicollinearity, outliers, and highly influential leverage points. Since the dataset has no null values, imputation is not necessary. The remaining issues are tackled in the following preprocessing code.
 
-Data preprocessing often begins by addressing missingness. EDA found that, regardless of feature, this data set contains zero missing values. Completeness is fortunate in that it renders imputation and the associated assumptions unnecessary. 
-
-```{r missingness}
-sum(is.na(df))
-```
 
 #### Skewness
-
-Next comes assessing the features for possible power transformation. Below are skewness statistics for each feature, with negative values reflecting left skewness and positive values reflecting right skewness. Larger values are associated with greater levels of skewness.
+Examining the skewness of each feature allows for a better understanding of the dataset at hand and can help to more easily identify features affected by outliers. Below are skewness statistics for each feature, with negative values reflecting left skewness and positive values reflecting right skewness. Larger values are associated with greater levels of skewness.
 
 Two features show large skew greater than $\pm$ 5: `severe_decelerations` at approximately 17.33; and `fetal_movement` at approximately 7.80. Three additional features show skew greater than $\pm$ 3: `prolonged_decelerations` at approximately 4.32; `histogram_zeroes` at approximately 3.91; and `histogram_variance` at approximately 3.22. All positive, these values reflect the distributions depicted during EDA. They could respond favorably to transformation prior to modeling, though the Box-Cox transformation (results not shown) only negligibly affects the skewness.
 
-```{r skewness, message = FALSE, warning = FALSE}
+```{r pp1, message = FALSE, warning = FALSE}
 knitr::kable(sapply(df[,-22], skewness), col.names = c("Skewness"))
+```
+#### Outlier Detection
+Outliers are defined as any observations that lie outside 1.5 * IQR, where IQR (Inter Quartile Range) is the difference between the 75th and 25th quartiles of the feature values. Outliers appear as dots on box and whisker plots. 
+
+A closer examination of the `severe_decelerations` variable shows that there are only 2 values for this feature - 0 and 0.001. Only 7 records in the dataset have a non-zero value, but 6 of these are classified as Pathological fetal health. To retain this information, this feature is eliminated from outlier analysis.  
+
+```{r pp2}
+no_target <- subset(df, select = c(-fetal_health, -severe_decelerations))
+```
+
+Caps are placed on observations at their 5th and 95th percentiles for the remaining variables. Any data points that fall outside of this range are replaced with the capped values. 
+
+```{r pp3}
+
+# identifying 5th and 95th percentiles per column
+low5 <- apply(no_target, 2, quantile, prob = 0.05)
+up95 <- apply(no_target, 2, quantile, prob = 0.95)
+
+# for each column, replace outliers with upper 95% value or lower 5% value
+for (i in seq_along(no_target)) {
+  no_target[,i][no_target[,i] < low5[i]] <- low5[i]
+  no_target[,i][no_target[,i] > up95[i]] <- up95[i]
+}
+
+# adding back in severe decelerations and fetal health
+df <- cbind(no_target, severe_decelerations = df$severe_decelerations, fetal_health=df$fetal_health)
 ```
 
 #### Collinearity
 
-Regarding possible collinearity, EDA found that strong correlations are present for each class of`fetal_health`. Spearman's rank coefficient is used to check correlations once more after panning out to include all samples regardless of class. This new plot mimics the one for the "Normal" class on account of the notable imbalance in sample counts. Here again, the measure of central tendency features are highly positively correlated with one another and with `baseline_value`. There are also strong correlations, varying between positive and negative, between the histogram shape features. Others with somewhat strong correlations across features are `light_decelerations` and `mean_short_var`. 
+EDA found that strong correlations are present for each class of `fetal_health`. Spearman's rank coefficient is used to check correlations once more with all samples, regardless of class. This new plot mimics the one for the "Normal" class on account of the notable imbalance in sample counts. Here again, the measure of central tendency features are highly positively correlated with one another and with `baseline_value`. There are also strong correlations, varying between positive and negative, between the histogram shape features. Others with somewhat strong correlations across features are `light_decelerations` and `mean_short_var`. 
 
 Additionally, three pairs of features have pair-wise correlation values above the 0.90 absolute threshold. For each pair, the feature with the higher mean absolute correlation is recommended for removal from the data set; these three features are `histogram_min`, `histogram_mean`, and `histogram_median`. They are removed prior to modeling.
 
-```{r correlations4}
-corr <- cor(df[,-22], method = "spearman")
+```{r pp4}
+corr <- cor(df %>% dplyr::select(-fetal_health), method = "spearman")
 corrplot::corrplot(corr)
-findCorrelation(corr, names = TRUE, exact = TRUE)
 ```
 
-#### Outliers
-
-Outliers present in the data set may be a concern depending upon the modeling approach. This analysis uses multinomial regression, which is relatively sensitive to outliers, and SVM and tree-based models, which are less so. The EDA boxplots revealed outliers--defined as samples with values greater than the upper/lower bounds of the inter-quartile range (IQR) plus/minus 1.5 times the IQR--across features by class of `fetal_health`. One possible treatment of these outliers is the spatial sign transformation, which projects all samples onto a unit sphere such that they are all equidistant from the center of that sphere.
-
-#### Train/Test Split
-
-Lastly, the highly correlated features are removed, and the data set is split 70/30 into a training set and a test set. The latter will be held out for validation of the final models.
-
-```{r remove_hicorr}
+```{r pp5}
 df_clean <- as.data.frame(df %>% dplyr::select(-c('histogram_min', 'histogram_mean', 'histogram_median')))
 ```
 
-```{r split}
+#### Normalization
+Normalization ensures that all variables are on the same scale. This is particularly important for understanding relationships between the predictor variables and response. Normalization involves scaling the features to have a mean of 0 and standard deviation of 1. 
+
+``` {r pp6}
+
+# min/max normalization
+min_max_norm <- function(x) {
+    (x - min(x)) / (max(x) - min(x))
+}
+
+# normalized data
+df_normalized <- as.data.frame(lapply(df_clean %>% dplyr::select(-fetal_health), min_max_norm))
+
+df_clean <- cbind(df_normalized, fetal_health = df_clean$fetal_health)
+
+```
+
+#### Train/Test Split
+
+Lastly, the data set is split 70/30 into a training set and a test set. The latter will be held out for validation of the final models.
+
+```{r pp7}
 set.seed(525)
 which_train <- sample(x = c(TRUE, FALSE), 
                       size = nrow(df_clean), 
@@ -222,13 +264,93 @@ which_train <- sample(x = c(TRUE, FALSE),
 train_set <- df_clean[which_train, ]
 test_set <- df_clean[!which_train, ]
 ```
-####
 
-### Modeling
+The resulting training and test sets have `r nrow(train_set)` and `r nrow(test_set)` rows, respectively. 
 
-#### Support Vector Machine(SVM)
 
-Support Vector Machine(SVM) is a supervised machine learning algorithm that can be used for classification or regression problems. Kernel is the technique used to transform ones data and then based on these transformations an optimal boundary is then found between the possible outputs. The data transformations are pretty complex, then separates your data based on the labels or outputs that have been defined.
+### Ordinal Logistic Regression 
+Ordinal Logistic Regression (OLR) is a classification method for problems with more than 2 *ordinal* outcomes. Since the outcome variable in this project, `fetal_health`, is progressive in nature, this method was chosen over a standard multinomial logistic regression, where classifications do not assume a numeric ordering. 
+
+It is important that the `fetal_health` outcome variable is explicitly defined as ordinal. Elimination of this step results in an analysis that is potentially meaningless. The `fetal_health`factor in this dataset is ordered from 1 - Normal, 2 - Suspect, and 3 - Pathological. 
+
+#### OLR Base Model 
+
+A baseline model that includes all features is developed. Specifying Hess=TRUE provides the observed information matrix from optimization. Similar to a standard logistic regression, the output of OLR includes the coefficients, standard errors, intercepts, and metrics (Residual Deviance and AIC). It also includes t-values, which need to be converted to p-values to identify features for model inclusion. 
+
+```{r olr1}
+train_set2 <- train_set
+test_set2 <- test_set
+
+olr_model <- polr(fetal_health ~ ., data = train_set2, Hess=TRUE)
+```
+
+T-values are the model coefficients divided by their standard error (where standard error is an estimate of the variation). The larger the t-value, the greater the evidence *against* the null hypothesis, and ultimately, the more likely the feature should be included in the model. T-values and p-values are inextricably linked, and since p-values are used to identify features for inclusion, the t-values are converted. 
+
+```{r olr2}
+ctable <- coef(summary(olr_model))
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- cbind(ctable, "p value" = p)
+ctable
+
+```
+The last two rows in the output are the intercepts (or cutpoints) of the OLR. They represent where the outcome variable is cut to create the three groups of `fetal_health`. 
+
+It is apparent by looking at the p-values that many features (like `histogram_peaks` and `histogram_zeroes`) do not warrant enough significance for inclusion in the final model.  
+
+
+#### OLR Improved Model 
+
+Backwards elimination using a p-value of less than 0.05 results in a final model that excludes the following features: `histogram_peaks`, `histogram_zeroes`, `mean_long_var`, `mean_short_var`, and `histogram_tendency`. 
+
+```{r olr3}
+
+olr_model_final <- polr(fetal_health ~ baseline_value + accelerations + fetal_movement +
+                    uterine_contractions + light_decelerations + prolonged_decelerations +
+                    abnormal_short_var + perc_time_long_var +
+                    histogram_max + histogram_mode + histogram_variance + 
+                    severe_decelerations + histogram_width , 
+                  data = train_set2, Hess=TRUE)
+
+```
+
+
+#### OLR Model Interpretation 
+
+Confidence intervals and proportional log-odds ratios are computed for the final OLR model. 
+
+```{r olr4}
+olr_ci <- confint(olr_model_final)
+olr_or <- coef(olr_model_final)
+exp(cbind(OR = olr_or, olr_ci))
+```
+The proportional log-odds ratios can be interpreted similar to odds ratios from binary logistic regression models. In other words, we can interpret each variable as “for a one unit increase in variable XXX, the odds of fetal health moving from Normal to Suspect or Pathological are YYY times greater, given that the other variables in the model are held constant”.
+
+It is important to note that the succession of the `fetal_health` variable from 1 (Normal) to 2 (Suspect) to 3 (Pathological) represents an overall **decrease** in the well-being of the child. This distinction is vital for proper interpretation of the proportional log-odds ratios. 
+
+Some key things to note:
+
+* The two most statistically significant variables are `prolonged_decelerations` and `accelerations`, with proportional odds ratio of $218.9972$ and $.00025$, respectively. This means that for a 1 unit increase `prolonged_decelerations`, the odds of moving from Normal to Suspect or Pathological are 219 times greater. Similarly, for a 1 unit increase in `accelerations`, the odds of moving from Normal to Suspect or Pathological are 0.00025 times greater. In other words, the more `prolonged_decelerations`, the worse the fetal health is, and the lower the `accelerations` are, the better the fetal health is. 
+* Other features that affect fetal health *negatively* (increases in values result in decreases in overall health) are: `abnormal_short_var`, `histogram_max`, `histogram_variance`, `severe_decelerations`, `baseline_value`, and `perc_time_long_var`. 
+* Other features that affect fetal health *positively* (increases in values result in increases in overall health) are: `fetal_movement`, `uterine_contractions`, `light_decelerations`, `histogram_mode`, and `histogram_width`. 
+
+As a gut check, these results make intuitive sense. For example, one would expect that the more fetal movement there is, the healthier the baby and the more severe decelerations there are, the unhealthier the baby. 
+
+#### OLR Performance
+
+Predictions are made on the test set to evaluate model performance. 
+
+```{r olr5}
+olr_preds <- predict(olr_model_final, newdata = test_set2)
+olr_conf <- confusionMatrix(table(olr_preds, test_set2$fetal_health))
+olr_accuracy <- olr_conf$overall['Accuracy']
+
+olr_conf$byClass
+```
+The overall accuracy of the model is `r olr_accuracy`. 
+
+### Support Vector Machine (SVM)
+
+Support Vector Machine (SVM) is a supervised machine learning algorithm that can be used for classification or regression problems. Kernel is the technique used to transform ones data and then based on these transformations an optimal boundary is then found between the possible outputs. The data transformations are pretty complex, then separates your data based on the labels or outputs that have been defined.
 
 SVM can be run using the e1071 package or the caret package. In the e1071 package the kernels are Linear, Radial, Polynomial or Sigimoid. In the caret package, the kernels are listed as svmLinear (for linear values), svmRadial (for non linear), and svmPoly (for nonlinear). When it is run within the svm function the kernals are listed differently in the in the e1071 it is listed under kernel, while in the caret package it is listed under method. For the purpose of this project, svmLinear will be used.
 
@@ -238,108 +360,139 @@ Before training the model, the trainControl() method is implemented. This will c
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 ```
 
-*The “method” parameter defines the resampling method, in this project the repeatedcv or the  repeated cross-validation method will be used.
+* The **method** parameter defines the re-sampling method.Repeated cross-validation is chosen for this model.
+* The **number** parameter holds the number of re-sampling iterations.
+* The **repeats** parameter contains the sets to compute for the repeated cross-validation.
 
-*The next parameter is the “number”, this basically holds the number of resampling iterations.
+#### SVM Base Model
 
-*The “repeats ” parameter contains the sets to compute for the repeated cross-validation with setting number =10 and repeats =3
-
-
+A base SVM model is created for comparison purposes. Features are centered and scaled. The tuneLength parameter tells the algorithm to optimize training by using different default values for the main parameter. Predictions are made on the test set to evaluate model performance. 
 ```{r svm1}
 set.seed(525)
-(svm_Linear <- train(fetal_health ~., data = train_set, method = "svmLinear",
-trControl=trctrl,
-preProcess = c("center", "scale"),
-tuneLength = 10))
+svm_Linear <- train(fetal_health ~., data = train_set, 
+                    method = "svmLinear",
+                    trControl=trctrl,
+                    preProcess = c("center", "scale"),
+                    tuneLength = 10)
+
+svm_base_pred <- predict(svm_Linear, newdata = test_set)
+svm_conf1 <- confusionMatrix(table(svm_base_pred, test_set$fetal_health))
+svm_acc1 <- svm_conf1$overall['Accuracy']
 ```
 
-```{r svm1_pred}
-set.seed(525)
-(test_pred <- predict(svm_Linear, newdata = test_set))
-```
-
-```{r svm1_matrix}
-confusionMatrix(table(test_pred, test_set$fetal_health))
-```
-
-The output shows that the model accuracy for test set is 89.09%.
+Overall accuracy of the base model on the test set is `r svm_acc1`. 
 
 #### SVM Improved Model
 
+To determine the ideal configuration for an optimized model, the tuneGrid parameter is used with a series of pre-defined Cost values between 0 and 5. Results are visualized in a plot of performance for each of the selected grid values. 
 ```{r svm2}
 set.seed(525)
-grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
-(svm_Linear_Grid <- train(fetal_health ~., data = train_set, method = "svmLinear",
-trControl=trctrl,
-preProcess = c("center", "scale"),
-tuneGrid = grid,
-tuneLength = 10))
-plot(svm_Linear_Grid)
+grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 5))
+svm_Linear_Grid <- train(fetal_health ~., data = train_set, method = "svmLinear",
+                         trControl=trctrl,
+                         preProcess = c("center", "scale"),
+                         tuneGrid = grid,
+                         tuneLength = 10)
+plot(svm_Linear_Grid,
+     main = "Accuracy by Cost Value", 
+     xlab = 'Cost Value')
 ```
 
-Accuracy was used to select the optimal model using the largest value.
-The final value used for the model was C = 0.25.
+The final value used for the improved model is C = 0.25. Final predictions are made on the test set. 
 
-Predict another model with Cost value of 0.25.
-
-```{r svm2_pred}
+```{r svm3}
 set.seed(525)
-(test_pred_grid <- predict(svm_Linear_Grid, newdata = test_set))
+svm_final_pred <- predict(svm_Linear_Grid, newdata = test_set)
+svm_conf2 <- confusionMatrix(table(svm_final_pred, test_set$fetal_health))
+svm_acc2 <- svm_conf2$overall['Accuracy']
 ```
 
-```{r svm2_matrix}
-confusionMatrix(table(test_pred_grid, test_set$fetal_health))
-```
-
-The output shows that the improved model accuracy for test set is 89.71%.
+Overall accuracy of the improved svm model on the test set is `r svm_acc2`. 
 
 #### SVM Conclusion
-SVlinear is chosen in this project because of the linear values of the dataset. Using Cost value of 0.25 to make a more improved SVM model, the improved model predicts accurately with 89.71% for the 3 classes of fetal health: 'Normal', 'Suspect', and 'Pathological'.
+SVlinear is chosen in this project because of the linear values of the dataset. Grid search was completed to identify the ideal cost value for the function, improving the model performance slightly from `r svm_acc1` to `r svm_acc2`.
 
-####
 
-#### Gradient Boosting Machines (GBM)
+### Gradient Boosting Machines (GBM)
+Boosting is a method used to convert weak learners into strong learners. In a GBM, a series of shallow and weak decision trees are built upon successively, with each iteration learning and improving the previous tree's performance. Combined, the many weak, successive trees create a stronger prediction. 
 
+
+#### GBM Base Model 
+
+A base model using the same training schema from the SVM section is created. Predictions are made on the test set to evaluate model performance. 
 ```{r gbm1}
 set.seed(525)
-(gbm1 <- train(x = train_set[,-19],
+gbm1 <- train(x = train_set[,-19],
                            y = train_set[,19],
                            method = "gbm",
                            preProcess = c('center', 'scale'),
-                           trControl = trctrl, #trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
-                           verbose = FALSE))
-```
-```{r gbm1_importance}
-vip(gbm1)
-```
-```{r gbm_grid}
-grid <- expand.grid(.interaction.depth = c(1, 3, 5),
-                    .n.trees = seq(100, 1000, by = 100),
-                    .shrinkage = c(0.01, 0.05),
-                    .n.minobsinnode = c(5, 10))
-```
-```{r gbm2}
-set.seed(525)
-(gbm2 <- train(x = train_set[,-19],
-                           y = train_set[,19],
-                           method = "gbm",
-                           tuneGrid = grid,
-                           preProcess = c('center', 'scale'),
-                           trControl = trctrl, # trainControl(method = "repeatedcv", number = 10, repeats = 3, sampling = "smote"),
-                           verbose = FALSE))
-```
-```{r gbm2_importance}
-vip(gbm2)
-```
-```{r gbm2_pred}
-gbm2_pred <- predict(gbm2, newdata = test_set)
-postResample(pred = gbm2_pred, obs = test_set$fetal_health)
-```
-```{r gbm2_matrix}
-confusionMatrix(table(gbm2_pred, test_set$fetal_health))
+                           trControl = trctrl,
+                           verbose = FALSE)
+
+
+gbm1_pred <- predict(gbm1, newdata = test_set)
+gbm_conf1 <- confusionMatrix(table(gbm1_pred, test_set$fetal_health))
+gbm_acc1 <- gbm_conf1$overall['Accuracy']
 ```
 
+Overall accuracy of the base model on the test set is `r gbm_acc1`. 
+
+#### GBM Improved Model
+A grid search is used to identify the ideal parameters for an optimized model. 
+
+* **interaction depth** - This parameter represents the depth of each tree. Values of 1, 3, and 5 are selected for analysis. 
+* **number of trees** - This parameter represents the total number of trees to be used in the model. Values of 100 - 1000, in increments of 100 are selected for analysis. 
+* **shrinkage** - This parameter represents the learning rate. Values of 0.01 and 0.05 are selected for this analysis.  
+* **min observations in node** - This parameter represents the minimum number of records that must occur within a node for a split to happen. Values of 5 and 10 are selected for analysis.
+
+Variable importances for the optimized model are visualized. 
+
+```{r gbm2}
+set.seed(525)
+#grid <- expand.grid(.interaction.depth = c(1, 3, 5),
+#                    .n.trees = seq(100, 1000, by = 100),
+#                    .shrinkage = c(0.01, 0.05),
+#                    .n.minobsinnode = c(5, 10))
+
+#gbm2 <- train(x = train_set[,-19],
+#                           y = train_set[,19],
+#                           method = "gbm",
+#                           tuneGrid = grid,
+#                           preProcess = c('center', 'scale'),
+#                           trControl = trctrl, 
+#                           verbose = FALSE)
+
+#vip(gbm2)
+```
+It is interesting to note that the most important features in the model do not completely align with the findings from the ordinal logistic regression. 
+
+Particularly interesting is the `severe_decelerations` feature. In the OLR model, the proportional log-odds ratio was 39, indicating that for 1 unit increase, the odds of moving from Normal to Suspect or Pathological are 39 times greater. However, in the optimized GBM model, this feature doesn't even appear in the top 10 factors! 
+
+Final predictions are made on the optimized GBM model. 
+```{r gbm3}
+#gbm2_pred <- predict(gbm2, newdata = test_set)
+#gbm_conf2 <- confusionMatrix(table(gbm2_pred, test_set$fetal_health))
+#gbm_acc2 <- gbm_conf2$overall['Accuracy']
+gbm_acc2 <- 0
+```
+
+Overall accuracy of the improved gbm model on the test set is `r gbm_acc2`. 
+
 ### Model Comparison
+Predicting fetal health is important in determining the appropriate course of action for a doctor to take. Successful prediction of **suspect** and **pathological** fetal health status can aid in the development of intervention timelines.
+
+Although model accuracy is often used as a means of comparing models, since we are primarily concerned with properly identifying less healthy babies, it is important that the selected metrics gauge the performance of the models at the *classification level*. This is particularly important in this project, as the classes are drastically imbalanced. 
+
+To compare the models, we use the following metrics:
+
+* **Sensitivity (Recall)**: This measure shows the proportion of the positive class that were correctly identified. 
+* **Prevalence**: This measure shows us how often the positive class occurs in the sample. The data set is highly imbalanced, and this measure captures that. 
+* **Detection Rate**: This measure shows us the number of correct positive class predictions made as a proportion of all of the predictions made. In a perfect classifier, this number matches the Prevalence. 
+
+
+### Conclusions and Future Work
+The models created for this analysis 
+
 
 
 ### Works Cited
@@ -360,53 +513,54 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r load}
 ```
-```{r summarystats}
+```{r eda1}
 ```
-```{r boxplots1, fig.cap='Feature boxplots by fetal health'}
+```{r eda2, fig.cap='Feature boxplots by fetal health'}
 ```
-```{r boxplots2, fig.cap='Feature boxplots by fetal health, continued'}
+```{r eda3, fig.cap='Feature boxplots by fetal health, continued'}
 ```
-```{r correlations1, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
+```{r eda4, fig.cap="Spearman's correlation heat map of features, Fetal health: Normal (1)"}
 ```
-```{r correlations2, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
+```{r eda5, warning = FALSE, fig.cap="Spearman's correlation heat map of features, Fetal health: Suspect (2)"}
 ```
-```{r correlations3, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
+```{r eda6, fig.cap="Spearman's correlation heat map of features, Fetal health: Pathological (3)"}
 ```
-```{r missingness}
+```{r pp1}
 ```
-```{r skewness}
+```{r pp2}
 ```
-```{r correlations4}
+```{r pp3}
 ```
-```{r remove_hicorr}
+```{r pp4}
 ```
-```{r split}
+```{r pp5}
+```
+```{r pp6}
+```
+```{r pp7}
+```
+```{r olr1}
+```
+```{r olr2}
+```
+```{r olr3}
+```
+```{r olr4}
+```
+```{r olr5}
 ```
 ```{r trcontrol}
 ```
 ```{r svm1}
 ```
-```{r svm1_pred}
-```
-```{r svm1_matrix}
-```
 ```{r svm2}
 ```
-```{r svm2_pred}
-```
-```{r svm2_matrix}
+```{r svm3}
 ```
 ```{r gbm1}
 ```
-```{r gbm1_importance}
-```
-```{r gbm_grid}
-```
 ```{r gbm2}
 ```
-```{r gbm2_importance}
+```{r gbm3}
 ```
-```{r gbm2_pred}
-```
-```{r gbm2_matrix}
-```
+
