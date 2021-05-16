@@ -30,6 +30,7 @@ library(caret)
 library(gbm)
 library(vip)
 library(MASS)
+library(ggplot2)
 ```
 
 ## Overview {.tabset .tabset-fade .tabset.-pills}
@@ -54,28 +55,28 @@ Sourced from a 2000 research project and deidentified, the dataset consists of s
 
 Variable | Description
 ------|------
-'baseline_value' | Fetal heart rate (FHR) baseline (beats per minute)
-'accelerations' | # of accelerations per second
-'fetal_movement' | # of fetal movements per second
-'uterine_contractions' | # of uterine contractions per second
-'light_decelerations' | # of light decelerations per second
-'severe_decelerations' | # of severe decelerations per second
-'prolonged_decelerations' | # of prolonged decelerations per second
-'abnormal_short_var' | % of time with abnormal short term variability
-'mean_short_var' | Mean value of short term variability
-'perc_time_long_var' | % of time with abnormal long term variability
-'mean_long_var' | Mean value of long term variability
-'histogram_width'| Width of FHR histogram
-'histogram_min' | Minimum (low frequency) of FHR histogram
-'histogram_max' | Maximum (high frequency) of FHR histogram
-'histogram_peaks' | # of histogram peaks
-'histogram_zeroes' | # of histogram zeroes
-'histogram_mode' | Histogram mode
-'histogram_mean' | Histogram mean
-'histogram_median' | Histogram median
-'histogram_variance' | Histogram variance
-'histogram_tendency' | Histogram tendency
-'fetal_health' | 1 (Normal), 2 (Suspect), 3 (Pathological) - TARGET
+baseline_value | Fetal heart rate (FHR) baseline (beats per minute)
+accelerations | # of accelerations per second
+fetal_movement | # of fetal movements per second
+uterine_contractions | # of uterine contractions per second
+light_decelerations | # of light decelerations per second
+severe_decelerations | # of severe decelerations per second
+prolonged_decelerations | # of prolonged decelerations per second
+abnormal_short_var | % of time with abnormal short term variability
+mean_short_var | Mean value of short term variability
+perc_time_long_var | % of time with abnormal long term variability
+mean_long_var | Mean value of long term variability
+histogram_width | Width of FHR histogram
+histogram_min | Minimum (low frequency) of FHR histogram
+histogram_max | Maximum (high frequency) of FHR histogram
+histogram_peaks | # of histogram peaks
+histogram_zeroes | # of histogram zeroes
+histogram_mode | Histogram mode
+histogram_mean | Histogram mean
+histogram_median | Histogram median
+histogram_variance | Histogram variance
+histogram_tendency | Histogram tendency
+fetal_health | 1 (Normal), 2 (Suspect), 3 (Pathological) - TARGET
 
 
 ```{r load, message=FALSE, warning=FALSE}
@@ -284,7 +285,7 @@ test_set2 <- test_set
 olr_model <- polr(fetal_health ~ ., data = train_set2, Hess=TRUE)
 ```
 
-T-values are the model coefficients divided by their standard error (where standard error is an estimate of the variation). The larger the t-value, the greater the evidence *against* the null hypothesis, and ultimately, the more likely the feature should be included in the model. T-values and p-values are inextricably linked, and since p-values are used to identify features for inclusion, the t-values are converted. 
+T-values are the model coefficients divided by their standard error (where standard error is an estimate of the variation). The larger the t-value, the greater the evidence *against* the null hypothesis, and ultimately, the more likely the feature should be included in the model. T-values and p-values are inextricably linked, and since p-values are used to identify features for inclusion, the t-values are converted. A summary of initial model features, including the coefficients and p-values is included in the table below. 
 
 ```{r olr2}
 ctable <- coef(summary(olr_model))
@@ -293,14 +294,12 @@ ctable <- cbind(ctable, "p value" = p)
 ctable
 
 ```
-The last two rows in the output are the intercepts (or cutpoints) of the OLR. They represent where the outcome variable is cut to create the three groups of `fetal_health`. 
-
-It is apparent by looking at the p-values that many features (like `histogram_peaks` and `histogram_zeroes`) do not warrant enough significance for inclusion in the final model.  
+The last two rows in the output are the intercepts (or cutpoints) of the OLR. They represent where the outcome variable is cut to create the three groups of `fetal_health`. It is apparent by looking at the p-values that many features (like `histogram_peaks` and `histogram_zeroes`) do not warrant enough significance for inclusion in the final model.  
 
 
 #### OLR Improved Model 
 
-Backwards elimination using a p-value of less than 0.05 results in a final model that excludes the following features: `histogram_peaks`, `histogram_zeroes`, `mean_long_var`, `mean_short_var`, and `histogram_tendency`. 
+Backwards elimination using a p-value of less than 0.05 results in a final model that excludes the following features: `histogram_peaks`, `histogram_zeroes`, `mean_long_var`, `mean_short_var`, and `histogram_tendency`. Confidence intervals and proportional log-odds ratios are computed for the final OLR model. 
 
 ```{r olr3}
 
@@ -311,18 +310,12 @@ olr_model_final <- polr(fetal_health ~ baseline_value + accelerations + fetal_mo
                     severe_decelerations + histogram_width , 
                   data = train_set2, Hess=TRUE)
 
-```
-
-
-#### OLR Model Interpretation 
-
-Confidence intervals and proportional log-odds ratios are computed for the final OLR model. 
-
-```{r olr4}
 olr_ci <- confint(olr_model_final)
 olr_or <- coef(olr_model_final)
 exp(cbind(OR = olr_or, olr_ci))
+
 ```
+
 The proportional log-odds ratios can be interpreted similar to odds ratios from binary logistic regression models. In other words, we can interpret each variable as “for a one unit increase in variable XXX, the odds of fetal health moving from Normal to Suspect or Pathological are YYY times greater, given that the other variables in the model are held constant”.
 
 It is important to note that the succession of the `fetal_health` variable from 1 (Normal) to 2 (Suspect) to 3 (Pathological) represents an overall **decrease** in the well-being of the child. This distinction is vital for proper interpretation of the proportional log-odds ratios. 
@@ -337,14 +330,16 @@ As a gut check, these results make intuitive sense. For example, one would expec
 
 #### OLR Performance
 
-Predictions are made on the test set to evaluate model performance. 
+Predictions are made on the test set to evaluate model performance. Final performance is included in the summary below. 
 
-```{r olr5}
+```{r olr4}
 olr_preds <- predict(olr_model_final, newdata = test_set2)
 olr_conf <- confusionMatrix(table(olr_preds, test_set2$fetal_health))
 olr_accuracy <- olr_conf$overall['Accuracy']
-
-olr_conf$byClass
+olr_final_metrics <- as.data.frame(olr_conf$byClass[,c(1,8,9)]) %>%
+  mutate(Model = 'OLR',
+         Class = row_number())
+olr_conf
 ```
 The overall accuracy of the model is `r olr_accuracy`. 
 
@@ -398,13 +393,18 @@ plot(svm_Linear_Grid,
      xlab = 'Cost Value')
 ```
 
-The final value used for the improved model is C = 0.25. Final predictions are made on the test set. 
+The final value used for the improved model is C = 0.25. Final predictions are made on the test set. Results are displayed in the table below. 
 
 ```{r svm3}
 set.seed(525)
 svm_final_pred <- predict(svm_Linear_Grid, newdata = test_set)
 svm_conf2 <- confusionMatrix(table(svm_final_pred, test_set$fetal_health))
 svm_acc2 <- svm_conf2$overall['Accuracy']
+svm_final_metrics <- as.data.frame(svm_conf2$byClass[,c(1,8,9)]) %>%
+  mutate(Model = 'SVM',
+         Class = row_number())
+
+svm_conf2
 ```
 
 Overall accuracy of the improved svm model on the test set is `r svm_acc2`. 
@@ -414,12 +414,14 @@ SVlinear is chosen in this project because of the linear values of the dataset. 
 
 
 ### Gradient Boosting Machines (GBM)
-Boosting is a method used to convert weak learners into strong learners. In a GBM, a series of shallow and weak decision trees are built upon successively, with each iteration learning and improving the previous tree's performance. Combined, the many weak, successive trees create a stronger prediction. 
 
+The gradient boosting machine (GBM) algorithm is a tree-based ensemble method. It builds an ensemble of weak learners--typically, decision trees of shallow depth--that learn from and improve on prior trees. This dependence across trees differs from the independent trees of the random forest algorithm. GBM have shown that a large number of weak learners can in aggregate produce high predictive performance. 
+
+GBM offer many hyperparameters for tuning as well as a choice of weak learner. This analysis uses decision trees and, for hyperparameters, focuses on the number of trees, or the total of trees to be fit by the algorithm; tree interaction depth, or the number of splits in each tree; and shrinkage, or the rate at which the algorithm descends the gradient. Per cursory research, the first three of these four appear to be the most common and also the most influential on model performance.
 
 #### GBM Base Model 
 
-A base model using the same training schema from the SVM section is created. Predictions are made on the test set to evaluate model performance. 
+An initial GBM model serves as a baseline. It uses the default value for shrinkage (0.1) and compares numbers of trees of 50, 100, and 150 and depths of one, two, and three trees, respectively. Preprocessing consists of centering and scaling, and ten-fold cross-validation is repeated three times during training. Predictions are made on the test set to evaluate model performance. 
 ```{r gbm1}
 set.seed(525)
 gbm1 <- train(x = train_set[,-19],
@@ -435,24 +437,23 @@ gbm_conf1 <- confusionMatrix(table(gbm1_pred, test_set$fetal_health))
 gbm_acc1 <- gbm_conf1$overall['Accuracy']
 ```
 
+Per the largest value of accuracy, the optimal model features 100 trees, a depth of two trees, shrinkage of 0.1, and a minimum of ten samples per terminal node of each tree. Its accuracy and Kappa on the training set are approximately 0.94 and 0.84, respectively. Regarding feature importance, `abnormal_short_var` spurs improvement in all trees where it informs splitting, while `perc_time_long_var` and `mean_short_var` sit at roughly eight of every ten trees (~71.18) and one of every two trees (~51.78), respectively.
+
 Overall accuracy of the base model on the test set is `r gbm_acc1`. 
 
 #### GBM Improved Model
-A grid search is used to identify the ideal parameters for an optimized model. 
 
-* **interaction depth** - This parameter represents the depth of each tree. Values of 1, 3, and 5 are selected for analysis. 
-* **number of trees** - This parameter represents the total number of trees to be used in the model. Values of 100 - 1000, in increments of 100 are selected for analysis. 
-* **shrinkage** - This parameter represents the learning rate. Values of 0.01 and 0.05 are selected for this analysis.  
-* **min observations in node** - This parameter represents the minimum number of records that must occur within a node for a split to happen. Values of 5 and 10 are selected for analysis.
+GBM tuning starts from a grid of hyperparameter values. The possible numbers of trees (100, 500, 800 and 1000) are raised to account for lower possible shrinkage rates (0.01 and 0.05). Tree depth is also expanded to a maximum of seven. There are 24 possible combinations across the three hyperparameters.
 
-Variable importances for the optimized model are visualized. 
+A second GBM model adopts the tuning grid and maintains the same preprocessing (centering and scaling) and cross-validation (three-times, ten-fold) approaches. Training time is substantial. 
 
 ```{r gbm2}
 set.seed(525)
-#grid <- expand.grid(.interaction.depth = c(1, 3, 5),
-#                    .n.trees = seq(100, 1000, by = 100),
+
+#grid <- expand.grid(.interaction.depth = c(2, 5, 7),
+#                    .n.trees = c(100, 500, 800, 1000),
 #                    .shrinkage = c(0.01, 0.05),
-#                    .n.minobsinnode = c(5, 10))
+#                    .n.minobsinnode = 10)
 
 #gbm2 <- train(x = train_set[,-19],
 #                           y = train_set[,19],
@@ -462,32 +463,137 @@ set.seed(525)
 #                           trControl = trctrl, 
 #                           verbose = FALSE)
 
-#vip(gbm2)
 ```
+
+Following grid search, and per accuracy, the optimal model features 800 trees, a depth of seven, and shrinkage of 0.05. Its training set accuracy and Kappa are approximately 0.95 and 0.85, respectively, which are both slight improvements over the baseline model. Feature importances are examined for the optimized model. 
+
+```{r gbm3}
+set.seed(525)
+grid_opt <- expand.grid(.interaction.depth = 7,
+                    .n.trees = 800,
+                    .shrinkage = 0.05,
+                    .n.minobsinnode = 10)
+gbm_opt <- train(x = train_set[,-19],
+                           y = train_set[,19],
+                           method = "gbm",
+                           tuneGrid = grid_opt,
+                           preProcess = c('center', 'scale'),
+                           trControl = trctrl, 
+                           verbose = FALSE)
+
+vip(gbm_opt)
+```
+
+Regarding feature importance, `abnormal_short_var` is important in all trees where it informs splitting. The importance of `mean_short_var` is similar, at roughly 70. 
+
 It is interesting to note that the most important features in the model do not completely align with the findings from the ordinal logistic regression. 
 
 Particularly interesting is the `severe_decelerations` feature. In the OLR model, the proportional log-odds ratio was 39, indicating that for 1 unit increase, the odds of moving from Normal to Suspect or Pathological are 39 times greater. However, in the optimized GBM model, this feature doesn't even appear in the top 10 factors! 
 
-Final predictions are made on the optimized GBM model. 
-```{r gbm3}
-#gbm2_pred <- predict(gbm2, newdata = test_set)
-#gbm_conf2 <- confusionMatrix(table(gbm2_pred, test_set$fetal_health))
-#gbm_acc2 <- gbm_conf2$overall['Accuracy']
-gbm_acc2 <- 0
+Final predictions are made on the optimized GBM model. Results are included in the table below. 
+```{r gbm4}
+gbm2_pred <- predict(gbm_opt, newdata = test_set)
+gbm_conf2 <- confusionMatrix(table(gbm2_pred, test_set$fetal_health))
+gbm_acc2 <- gbm_conf2$overall['Accuracy']
+gbm_final_metrics <- as.data.frame(gbm_conf2$byClass[,c(1,8,9)]) %>%
+  mutate(Model = 'GBM',
+         Class = row_number())
+
+gbm_conf2
 ```
 
-Overall accuracy of the improved gbm model on the test set is `r gbm_acc2`. 
+The optimal model predicts well on the test set, with an accuracy of approximately `r gbm_acc2` and a Kappa of approximately 0.86. Unsurprisingly, the model accuracy exceeds the no information rate of approximately 0.78, or the proportion of samples representing the "Normal" class of `fetal_health`. The balanced accuracy values of the three classes range from approximately 0.89 for "Suspect" to approximately 0.93 for "Normal" to approximately 0.95 for "Pathological".
+
+#### GBM Summary
+Overall, GBM performs well in predicting `fetal_health` for samples in this data set, with an accuracy of approximately 0.95. Tuning hyperparameters including number of trees, tree depth, and shrinkage results in slight performance improvement over a baseline model. The optimal hyperparameter values are 800 trees, a depth of seven, and shrinkage of 0.05.
+
 
 ### Model Comparison
 Predicting fetal health is important in determining the appropriate course of action for a doctor to take. Successful prediction of **suspect** and **pathological** fetal health status can aid in the development of intervention timelines.
 
 Although model accuracy is often used as a means of comparing models, since we are primarily concerned with properly identifying less healthy babies, it is important that the selected metrics gauge the performance of the models at the *classification level*. This is particularly important in this project, as the classes are drastically imbalanced. 
 
-To compare the models, we use the following metrics:
+In addition to a raw accuracy comparison, we will also use the following metrics to determine the best model:
 
-* **Sensitivity (Recall)**: This measure shows the proportion of the positive class that were correctly identified. 
 * **Prevalence**: This measure shows us how often the positive class occurs in the sample. The data set is highly imbalanced, and this measure captures that. 
 * **Detection Rate**: This measure shows us the number of correct positive class predictions made as a proportion of all of the predictions made. In a perfect classifier, this number matches the Prevalence. 
+* **Sensitivity (Recall)**: This measure shows the proportion of the positive class that were correctly identified. 
+
+
+#### Class Prevalence
+All models have the same class prevalence because the same training and test sets were used. We know from the EDA that the dataset is imbalanced. Visualizing the prevalence gives us a better idea of the proportion of each class in the test set: 
+
+```{r comp1}
+
+all_metrics <- rbind(olr_final_metrics, svm_final_metrics, gbm_final_metrics)
+all_accuracies <- as.data.frame(rbind(olr = olr_accuracy, svm = svm_acc2, gbm = gbm_acc2))
+all_accuracies$model <- rownames(all_accuracies)
+
+prevalence <- all_metrics %>%
+  dplyr::select(Prevalence, Class) %>%
+  distinct()
+
+ggplot(prevalence, aes(x = Class, y = Prevalence, fill = Class)) +
+  geom_bar(stat="identity") +
+  ggtitle('Class Prevalence in the Test Set') +
+  geom_text(aes(label = round(Prevalence,2)) , 
+            colour = "white", size = 4,
+            vjust = 1.5, position = position_dodge(.9))
+
+```
+
+The prevalence can be used in combination with the Detection Rate to understand what portion of each class that the models correctly identified.
+
+```{r comp2}
+
+portion_missed <- all_metrics %>%
+  mutate(`Portion Missed` = Prevalence - `Detection Rate`) %>%
+  dplyr::select(-Sensitivity, -Prevalence) 
+
+portion_missed <- gather(portion_missed, type, rate, c(`Detection Rate`, `Portion Missed`)) 
+
+ggplot(portion_missed, aes(x = Class, 
+                           y = rate, 
+                           fill = factor(type, 
+                                         levels=c("Portion Missed", "Detection Rate")))) +
+  geom_bar(position = "stack", stat = "identity") +
+  labs(fill = 'Type',
+       y = 'Percent Occurence',
+       title = 'Percent of Class Captured by each Model') + 
+  facet_wrap( ~ Model)
+
+```
+
+#### Model Accuracy
+A comparison of the model accuracy across the 4 methods is shown below: 
+```{r comp3}
+
+ggplot(all_accuracies, aes(x = model, y = Accuracy, fill = model)) +
+  geom_bar(stat="identity") +
+  ggtitle('Comparison of Overall Model Accuracy') +
+  geom_text(aes(label = round(Accuracy,2)) , 
+            colour = "white", size = 4,
+            vjust = 1.5, position = position_dodge(.9))
+  
+```
+
+
+#### Model Sensitivity
+A comparison of model sensitivity for each of the three classes is shown below. It is important that the sensitivity for classes 2 (Suspect) and 3 (Pathological) are high, as these are the statuses that are more important to predict correctly.
+
+```{r comp4}
+
+ggplot(all_metrics %>% dplyr::select(-Prevalence, -`Detection Rate`), 
+       aes(x = Class, y = Sensitivity, fill = Model)) +
+  geom_col(position = "dodge") +
+  ggtitle('Comparison of Sensitivity Across Classes') +
+  geom_text(aes(label = round(Sensitivity,2)) , 
+            colour = "white", size = 4,
+            vjust = 1.5, position = position_dodge(.9))
+  
+
+```
+
 
 
 ### Conclusions and Future Work
@@ -501,16 +607,21 @@ https://www.kaggle.com/andrewmvd/fetal-health-classification
 
 Ayres de Campos et al. (2000) SisPorto 2.0 A Program for Automated Analysis of Cardiotocograms. J Matern Fetal Med 5:311-318
 
+Boehmke, B. (2018). *Gradient boosting machines*. UC Business Analytics R Programming Guide. Accessed May 15, 2021 from http://uc-r.github.io/gbm_regression.
+
 Hamid Rashkiany. “Support Vector Machine In R: Using SVM To Predict Heart Diseases.” Edureka, 15 May 2020, www.edureka.co/blog/support-vector-machine-in-r/. 
 
 Kuhn, M. (2019). *The caret package*. Accessed May 15, 2021, from https://topepo.github.io/caret/.
 
+
 ### Code Appendix
 
-The code chunks below represent the R code called in order during the analysis. They are reproduced in the appendix for review and comment.
+The code chunks below represent the R code called in order during the analysis. These are reproduced in the appendix for review and comment.
 
 ```{r appendix, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```
+
 ```{r load}
 ```
 ```{r eda1}
@@ -547,8 +658,6 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r olr4}
 ```
-```{r olr5}
-```
 ```{r trcontrol}
 ```
 ```{r svm1}
@@ -563,4 +672,13 @@ The code chunks below represent the R code called in order during the analysis. 
 ```
 ```{r gbm3}
 ```
-
+```{r gbm4}
+```
+```{r comp1}
+```
+```{r comp2}
+```
+```{r comp3}
+```
+```{r comp4}
+```
