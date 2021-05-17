@@ -508,7 +508,7 @@ The optimal model predicts well on the test set, with an accuracy of approximate
 Overall, GBM performs well in predicting `fetal_health` for samples in this data set, with an accuracy of approximately 0.95. Tuning hyperparameters including number of trees, tree depth, and shrinkage results in slight performance improvement over a baseline model. The optimal hyperparameter values are 800 trees, a depth of seven, and shrinkage of 0.05.
 
 
-### Random Forest(RF)
+### Random Forest (RF)
 
 #### RF Base Model 
 
@@ -585,6 +585,21 @@ In addition to a raw accuracy comparison, we will also use the following metrics
 * **Sensitivity (Recall)**: This measure shows the proportion of the positive class that were correctly identified. 
 
 
+#### Model Accuracy
+A comparison of the model accuracy across the 4 methods is shown below: 
+```{r comp3}
+
+ggplot(all_accuracies, aes(x = model, y = Accuracy, fill = model)) +
+  geom_bar(stat="identity") +
+  ggtitle('Comparison of Overall Model Accuracy') +
+  geom_text(aes(label = round(Accuracy,2)) , 
+            colour = "white", size = 4,
+            vjust = 1.5, position = position_dodge(.9))
+  
+```
+
+GBM performs the best, followed by Random Forest, then SVM, and finally OLR. 
+
 #### Class Prevalence
 All models have the same class prevalence because the same training and test sets were used. We know from the EDA that the dataset is imbalanced. Visualizing the prevalence gives us a better idea of the proportion of each class in the test set: 
 
@@ -607,7 +622,7 @@ ggplot(prevalence, aes(x = Class, y = Prevalence, fill = Class)) +
 
 ```
 
-The prevalence can be used in combination with the Detection Rate to understand what portion of each class that the models correctly identified.
+The prevalence can be used in combination with the Detection Rate to understand what portion of each class that the models correctly identified. In the following figure, predictions are broken out by prevalence at the class level per model. The blue area represents the portion of the class that was identified correctly. The pink area represents the portion of the class that was missed. 
 
 ```{r comp2}
 
@@ -629,18 +644,7 @@ ggplot(portion_missed, aes(x = Class,
 
 ```
 
-#### Model Accuracy
-A comparison of the model accuracy across the 4 methods is shown below: 
-```{r comp3}
-
-ggplot(all_accuracies, aes(x = model, y = Accuracy, fill = model)) +
-  geom_bar(stat="identity") +
-  ggtitle('Comparison of Overall Model Accuracy') +
-  geom_text(aes(label = round(Accuracy,2)) , 
-            colour = "white", size = 4,
-            vjust = 1.5, position = position_dodge(.9))
-  
-```
+Out of the four models, OLR performs the worst on predicting Suspect and Pathological fetal health statuses. 
 
 
 #### Model Sensitivity
@@ -659,11 +663,17 @@ ggplot(all_metrics %>% dplyr::select(-Prevalence, -`Detection Rate`),
 
 ```
 
+GBM performs best across the board, while OLR performs the worst. Some things to note:
 
+* All models perform well when predicting Normal Fetal Health.  
+* GBM, SVM, and Random Forest perform worse when predicting Suspect Fetal Health, but significanly better then OLR. 
+* Both SVM and OLR perform poorly when predicting Pathological Fetal Health. GBM and Random Forest perform similarly.  
 
 ### Conclusions and Future Work
-The models created for this analysis 
+Overall, the GBM model has the best performance with 94% Accuracy, and 98%, 76%, and 80% recall for Normal, Suspect, and Pathological statuses. Some additional things to note:
 
+**Future Work**
+We believe that over- or under- sampling to create a more balanced dataset would likely improve the overall metrics for the dataset, especially for the Ordinal Linear Regression Model. In addition, we feel that including combination features might yield some interesting insights into the data, and potentially increase overall recall. Finally, this work could be expanded to include PCA for feature consolidation and reduction. 
 
 
 ### Works Cited
