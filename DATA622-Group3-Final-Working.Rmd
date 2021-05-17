@@ -508,6 +508,71 @@ The optimal model predicts well on the test set, with an accuracy of approximate
 Overall, GBM performs well in predicting `fetal_health` for samples in this data set, with an accuracy of approximately 0.95. Tuning hyperparameters including number of trees, tree depth, and shrinkage results in slight performance improvement over a baseline model. The optimal hyperparameter values are 800 trees, a depth of seven, and shrinkage of 0.05.
 
 
+### Random Forest(RF)
+
+#### RF Base Model 
+
+```{r rf base}
+set.seed(525)
+# Run the model
+rf_default <- train(fetal_health~.,
+    data = train_set,
+    method = "rf",
+    metric = "Accuracy",
+    trControl = trControl)
+```
+
+
+```{r rf base pred}
+prediction_rf1 <-predict(rf_default, test_set)
+rf_conf1<-confusionMatrix(prediction_rf1, test_set$fetal_health)
+rf_acc1 <- rf_conf1$overall['Accuracy']
+
+rf_conf1
+```
+`r rf_acc1`
+
+#### RF Optimized 
+
+```{r rf opt }
+set.seed(525)
+tuneGrid = expand.grid(.mtry=c(2:15))
+fit_rf <- train(fetal_health~.,
+    train_set,
+    method = "rf",
+    metric = "Accuracy",
+    tuneGrid = tuneGrid,
+    trControl = trControl,
+    importance = TRUE,
+    ntree = 500)
+```
+
+ 
+```{r rf prediction}
+prediction_rf2 <-predict(fit_rf, test_set)
+rf_conf2<-confusionMatrix(prediction_rf2, test_set$fetal_health)
+rf_acc2 <- rf_conf2$overall['Accuracy']
+rf_final_metrics <- as.data.frame(rf_conf2$byClass[,c(1,8,9)]) %>%
+  mutate(Model = 'RF',
+         Class = row_number())
+#rf_conf2
+```
+
+```{r ggplot varimp, fig.height=5, fig.width=5}
+test_set1<-test_set
+test_set1$prediction_rf2<- prediction_rf2
+p1 = ggplot(test_set1, aes(x = fetal_health, y = prediction_rf2, color = fetal_health)) +
+  geom_jitter(size = 3) +
+  scale_color_manual(values = pCol)+
+  labs(title = 'RF Accuracy : 0.9355, .mtry= 5')
+
+p2=plot(varImp(fit_rf, scale = TRUE))
+```
+```{r final_plot, fig.height=5, fig.width=10}
+gridExtra::grid.arrange(p1,p2, ncol = 2)
+```
+
+
 ### Model Comparison
 Predicting fetal health is important in determining the appropriate course of action for a doctor to take. Successful prediction of **suspect** and **pathological** fetal health status can aid in the development of intervention timelines.
 
@@ -525,8 +590,8 @@ All models have the same class prevalence because the same training and test set
 
 ```{r comp1}
 
-all_metrics <- rbind(olr_final_metrics, svm_final_metrics, gbm_final_metrics)
-all_accuracies <- as.data.frame(rbind(olr = olr_accuracy, svm = svm_acc2, gbm = gbm_acc2))
+all_metrics <- rbind(olr_final_metrics, svm_final_metrics, gbm_final_metrics, rf_final_metrics )
+all_accuracies <- as.data.frame(rbind(olr = olr_accuracy, svm = svm_acc2, gbm = gbm_acc2, rf=rf_acc2 ))
 all_accuracies$model <- rownames(all_accuracies)
 
 prevalence <- all_metrics %>%
@@ -673,6 +738,18 @@ knitr::opts_chunk$set(echo=TRUE, eval=FALSE)
 ```{r gbm3}
 ```
 ```{r gbm4}
+```
+```{r rf base}
+```
+```{r rf base pred}
+```
+```{r rf opt }
+``` 
+```{r rf prediction}
+```
+```{r ggplot varimp, fig.height=5, fig.width=5}
+```
+```{r final_plot, fig.height=5, fig.width=10}
 ```
 ```{r comp1}
 ```
