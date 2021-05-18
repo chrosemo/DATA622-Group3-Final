@@ -35,7 +35,7 @@ library(ggplot2)
 
 ## Overview {.tabset .tabset-fade .tabset.-pills}
 
-This analysis employs a variety of classification algorithms to predict fetal health status using a cardiotocogram (CTG) dataset. It begins with exploratory data analysis (EDA) and preprocessing followed by a series of predictive models. It ends with an evaluation of model performance.
+This analysis employs a variety of algorithms to predict fetal health status using a cardiotocogram (CTG) dataset. Predicting fetal health, particularly suspect and pathological health statuses, is key for informing doctors in identifying appropriate interventions and intervention timelines. Analysis begins with exploratory data analysis (EDA) and preprocessing followed by a series of predictive models. It ends with an evaluation of model performance.
 
 All references and a technical appendix of all R code are available at the end of this report.
 
@@ -102,13 +102,13 @@ df$fetal_health = factor(df$fetal_health, levels = c("1", "2", "3"), ordered = T
   <summary> *Expand for Basic Statistic Summary* </summary>
   
 ```{r eda1}
-skim(df) %>% dplyr::select(-n_missing, -numeric.sd, -numeric.p25, -numeric.p75)
+skim(df) %>% dplyr::select(-n_missing, -numeric.p25, -numeric.p75, -numeric.hist)
 ```
 
 </details>
 
 
-Summary statistics reveal useful information about the dataset. First, the dataset contains zero missing values. This completeness renders imputation, which can rest on tenuous assumptions, unnecessary. Second, beyond the categorical target `fetal_health`, all of the features are numeric, though their scales vary substantially. Thus centering and scaling could facilitate modeling. Third, many features display strong rightward skew, which suggests additional transformation may be necessary as well. And fourth, the classes of `fetal_health` are highly imbalanced. The largest class, "Normal" (1), consists of 1,655 samples compared to 295 samples for "Suspect" (2) and 176 samples for "Pathological" (3). This issue can be mitigated through over- or under-sampling.
+Summary statistics reveal useful information about the dataset. First, the dataset contains zero missing values. This completeness renders imputation, which can rest on tenuous assumptions, unnecessary. Second, beyond the categorical target `fetal_health`, all of the features are numeric, though their scales vary substantially. Thus centering and scaling could facilitate modeling. Third, many features display apparent rightward skew, which suggests additional transformation may be necessary as well. And fourth, the classes of `fetal_health` are highly imbalanced. The largest class, "Normal" (1), consists of 1,655 samples compared to 295 samples for "Suspect" (2) and 176 samples for "Pathological" (3).
 
 #### Feature Distributions
 
