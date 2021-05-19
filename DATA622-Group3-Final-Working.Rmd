@@ -644,7 +644,6 @@ rf_conf21
 
 #### Optimized RF Model 
 
-For the optimized RF model the node parameters will be removed, the tuneGrid will remain and it will be the defalut number of ntree's which is 500. 
 
 ```{r rf opt }
 set.seed(525)
@@ -659,10 +658,8 @@ op_rf <- train(fetal_health~.,
     ntree = 500)
 
 ##print(fit_rf)
-plot(varImp(op_rf, scale = TRUE))
-```
 
-The varImp so that we can see the important features of the random forest in order to see if it compares to the Ordinal Logistic Regression model. Looking at the importance levels once can see that 'prolonged_decelerations' is considered an important feature for Normal and Pathological class but not for Suspect class. 'abnormal_short_var' is the important feature for Suspect. It is interesting though that 'accelerations' is not considered important in comparison to the OLR model. 
+```
 
 
 ```{r rf prediction}
@@ -672,9 +669,9 @@ rf_acc2 <- rf_conf2$overall['Accuracy']
 rf_final_metrics <- as.data.frame(rf_conf2$byClass[,c(1,8,9)]) %>%
   mutate(Model = 'RF',
          Class = row_number())
-## rf_conf2
+
 ```
-```{r ggplot varimp, fig.height=5, fig.width=5}
+```{r ggplot , fig.height=5, fig.width=5}
 pCol <- c("#37004D", '#ff8301', '#bf5ccb')
 test_set1<-test_set
 test_set1$prediction_rf2<- prediction_rf2
@@ -686,14 +683,31 @@ p1 = ggplot(test_set1, aes(x = fetal_health, y = prediction_rf2, color = fetal_h
 ```
 ```{r final_plot}
 p1
+rf_conf2
 ```
 
+
+For the optimized RF model the node parameters will be removed, the tuneGrid will remain and it will be the default number of ntree's which is 500. 
+
 This model gives an accuracy of `r rf_acc2` which is a small increase from the base model but it is an increase. The balanced accuracy increased as well, for the Normal Class is approximately 91.17%, for Suspect is approximately  84.52%, and Pathological is approximately 91.39%. In comparison to the other classes it poorly predicts Suspect, but the prediction for Normal and Pathological are about the same. The optimal $m_{try}$ for this model is 5 which means that 5 features are chosen for each iteration. 
+
+
+
+```{r varimp}
+plot(varImp(op_rf, scale = TRUE))
+```
+
+
+The varImp so that we can see the important features of the random forest in order to see if it compares to the Ordinal Logistic Regression model. Looking at the importance levels once can see that `prolonged_decelerations` is considered an important feature for Normal and Pathological class but not for Suspect class. `abnormal_short_var` is the important feature for Suspect. It is interesting though that 'accelerations' is not considered important in comparison to the OLR model. 
+
+
 
 
 #### RF Conclusion 
 
 The optimized model with the removal of nodes ended up being the optimized model, but it was a slight increase from the base model it went from `r rf_acc1` to `r rf_acc2`. Although one may try to find the most optimized model by trying find the best parameters it may not always be the best model depending on the dataset. The best parameters to use for this model was $m_{try}$ and .ntree of the default number of 500. Since the accuracy is somewhat high one can use random forest in order to predict `fetal_health`.  
+
+
 
 
 
@@ -712,7 +726,9 @@ In addition to a raw accuracy comparison, we will also use the following metrics
 #### Model Accuracy
 A comparison of the model accuracy across the 4 methods is shown below: 
 ```{r comp3}
-
+all_metrics <- rbind(olr_final_metrics, svm_final_metrics, gbm_final_metrics, rf_final_metrics )
+all_accuracies <- as.data.frame(rbind(olr = olr_accuracy, svm = svm_acc2, gbm = gbm_acc2, rf=rf_acc2 ))
+all_accuracies$model <- rownames(all_accuracies)
 ggplot(all_accuracies, aes(x = model, y = Accuracy, fill = model)) +
   geom_bar(stat="identity") +
   ggtitle('Comparison of Overall Model Accuracy') +
@@ -729,9 +745,7 @@ All models have the same class prevalence because the same training and test set
 
 ```{r comp1}
 
-all_metrics <- rbind(olr_final_metrics, svm_final_metrics, gbm_final_metrics, rf_final_metrics )
-all_accuracies <- as.data.frame(rbind(olr = olr_accuracy, svm = svm_acc2, gbm = gbm_acc2, rf=rf_acc2 ))
-all_accuracies$model <- rownames(all_accuracies)
+
 
 prevalence <- all_metrics %>%
   dplyr::select(Prevalence, Class) %>%
@@ -812,6 +826,9 @@ Hamid Rashkiany. “Support Vector Machine In R: Using SVM To Predict Heart Dise
 
 Kuhn, M. (2019). *The caret package*. Accessed May 15, 2021, from https://topepo.github.io/caret/.
 
+*R Random Forest Tutorial with Example*.Guru99. from https://www.guru99.com/r-random-forest-tutorial.html
+
+ Sourav Kumar Das. "Random Forest Classification explained in detail and developed in R". TechTarget, Inc., 10 May 2020, https://www.datasciencecentral.com/profiles/blogs/random-forest-classification-explained-in-detail-and-developed-in
 
 ### Code Appendix
 
