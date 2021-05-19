@@ -657,7 +657,7 @@ op_rf <- train(fetal_health~.,
     importance = TRUE,
     ntree = 500)
 
-##print(fit_rf)
+##print(op_rf)
 
 ```
 
@@ -681,20 +681,25 @@ p1 = ggplot(test_set1, aes(x = fetal_health, y = prediction_rf2, color = fetal_h
   labs(title = 'RF Accuracy : 0.9355, .mtry = 5')
 
 ```
-```{r final_plot}
-p1
-rf_conf2
-```
+
 
 
 For the optimized RF model the node parameters will be removed, the tuneGrid will remain and it will be the default number of ntree's which is 500. 
+
+
+```{r conf2}
+rf_conf2
+```
+
 
 This model gives an accuracy of `r rf_acc2` which is a small increase from the base model but it is an increase. The balanced accuracy increased as well, for the Normal Class is approximately 91.17%, for Suspect is approximately  84.52%, and Pathological is approximately 91.39%. In comparison to the other classes it poorly predicts Suspect, but the prediction for Normal and Pathological are about the same. The optimal $m_{try}$ for this model is 5 which means that 5 features are chosen for each iteration. 
 
 
 
-```{r varimp}
-plot(varImp(op_rf, scale = TRUE))
+```{r final_plot, fig.width=10}
+p2= plot(varImp(op_rf, scale = TRUE))
+
+gridExtra::grid.arrange(p1,p2, ncol=2)
 ```
 
 
