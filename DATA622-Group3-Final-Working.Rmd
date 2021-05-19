@@ -510,9 +510,21 @@ Overall, GBM performs well in predicting `fetal_health` for samples in this data
 
 ### Random Forest (RF)
 
+Random forest, is a collection of decision trees that are individual and create an ensemble. Each decision tree within the random forest has a class prediction and the class that has the most predictions becomes the designated prediction for the whole forest.
+
+"The wisdom of crowds" is the fundamental concept of a random forest. A group of trees is needed to come together in order to classify the data to come up with a decision, which absorbs the flaws internally to come up with the best accuracy. It is important for a random forest for the trees to be uncorrelated so that the decision makers are not influenced by ones opinion.
+
+Random forest will be used to see if it can accurately predict whether the `fetal_health` is either 1 - Normal, 2 - Suspect or 3 - Pathological. Since features in the dataset need to be uncorrelated the correlated features were already removed as part of the data preparation.   
+
+
 #### RF Base Model 
 
+First we run the model with the default values. The model includes the same trainControl as the previous models with the cross validation method, with 10 resampling iterations,and 3 repeats but with an addition of a grid search which is a randomized method. The model also includes a metric for accuracy, since achieving a higher accuracy is prevalent. 
+
+
 ```{r rf base}
+# Define the control
+trControl <- trainControl(method = "cv", number = 10, repeats = 3, search = "grid")
 set.seed(525)
 # Run the model
 rf_default <- train(fetal_health~.,
@@ -520,24 +532,124 @@ rf_default <- train(fetal_health~.,
     method = "rf",
     metric = "Accuracy",
     trControl = trControl)
+## print(rf_default)
 ```
-
-
 ```{r rf base pred}
 prediction_rf1 <-predict(rf_default, test_set)
 rf_conf1<-confusionMatrix(prediction_rf1, test_set$fetal_health)
 rf_acc1 <- rf_conf1$overall['Accuracy']
-
-rf_conf1
+##rf_conf1
 ```
-`r rf_acc1`
 
-#### RF Optimized 
+The base model gives an accuracy of `r rf_acc1`. The balanced accuracy between the classes are approximately .9097 for Normal, .85031 for Suspect, and .90406 for Pathological.  
+
+#### Tuning of the RF Model 
+
+Next is to tune the model to see if a higher accuracy can be obtained by adding some tuning metrics. Some of the metrics that were added was the 'Importance=true' to obtain most important values. There are three metrics to note when it comes to tuning an RF model. 
+
+- **.mtry** - to find out how many features are chosen for each iteration, a vector is created with values from 2-10 which will be evaluated in the tuneGrid
+
+- **maxnodes** - max number of terminal nodes (leaves), a loop is created in order to evaluate different values of maxnodes going from 5-25
+
+- **ntree**- to find the optimal number of trees which are (250,300,350,400, 450, 500, 550, 600, 800, 1000)
+
+After getting the optimal values for each the final model consists of these parameters which are $m_{try}$ of 4, **maxnodes** of 25, and **ntree** of 800. The default model had an $m_{try}$ of 10.
+
+After evaluating the model it was discovered that the accuracy of the optimized model ended up giving an accuracy of approximately 90%, when the base model gave an accuracy of 93.24%. It was then decided to see if the by removing the node parameters and keep the tuneGrid of of the $m_{try}$ , as well as .ntree with a default number of 500(800 was used but same outcome as the base model) to see if it will increase the accuracy. 
+
+
+```{r eval=FALSE, include=FALSE}
+## best .mtry
+set.seed(1234)
+tuneGrid <- expand.grid(.mtry = c(1: 10))
+rf_mtry <- train(fetal_health~.,
+    data = train_set,
+    method = "rf",
+    metric = "Accuracy",
+    tuneGrid = tuneGrid,
+    trControl = trControl,
+    importance = TRUE,
+    nodesize = 14,
+    ntree = 300)
+print(rf_mtry)
+```
+```{r eval=FALSE, include=FALSE}
+best_mtry <- rf_mtry$bestTune$mtry 
+best_mtry
+```
+```{r eval=FALSE, include=FALSE}
+##best maxnode
+store_maxnode <- list()
+tuneGrid <- expand.grid(.mtry = best_mtry)
+for (maxnodes in c(5: 25)) {
+    set.seed(1234)
+    rf_maxnode <- train(fetal_health~.,
+        data = train_set,
+        method = "rf",
+        metric = "Accuracy",
+        tuneGrid = tuneGrid,
+        trControl = trControl,
+        importance = TRUE,
+        nodesize = 14,
+        maxnodes = maxnodes,
+        ntree = 300)
+    current_iteration <- toString(maxnodes)
+    store_maxnode[[current_iteration]] <- rf_maxnode
+}
+results_mtry <- resamples(store_maxnode)
+summary(results_mtry)
+```
+```{r eval=FALSE, include=FALSE}
+##max trees
+store_maxtrees <- list()
+for (ntree in c(250, 300, 350, 400, 450, 500, 550, 600, 800, 1000)) {
+    set.seed(5678)
+    rf_maxtrees <- train(fetal_health~.,
+        data = train_set,
+        method = "rf",
+        metric = "Accuracy",
+        tuneGrid = tuneGrid,
+        trControl = trControl,
+        importance = TRUE,
+        nodesize = 14,
+        maxnodes = 24,
+        ntree = ntree)
+    key <- toString(ntree)
+    store_maxtrees[[key]] <- rf_maxtrees
+}
+results_tree <- resamples(store_maxtrees)
+summary(results_tree)
+```
+```{r eval=FALSE, include=FALSE}
+## optimal model 
+set.seed(525)
+fit_rf1 <- train(fetal_health~.,
+    train_set,
+    method = "rf",
+    metric = "Accuracy",
+    tuneGrid = tuneGrid,
+    trControl = trControl,
+    importance = TRUE,
+    nodesize = 14,
+    ntree = 800,
+    maxnodes = 25)
+```
+```{r eval=FALSE, include=FALSE}
+## prediction of optimal model
+prediction_rf21 <-predict(fit_rf1, test_set)
+rf_conf21<-confusionMatrix(prediction_rf21, test_set$fetal_health)
+rf_conf21
+```
+
+
+#### Optimized RF Model 
+
+For the optimized RF model the node parameters will be removed, the tuneGrid will remain and it will be the defalut number of ntree's which is 500. 
 
 ```{r rf opt }
 set.seed(525)
 tuneGrid = expand.grid(.mtry=c(2:15))
-fit_rf <- train(fetal_health~.,
+op_rf <- train(fetal_health~.,
     train_set,
     method = "rf",
     metric = "Accuracy",
@@ -545,32 +657,44 @@ fit_rf <- train(fetal_health~.,
     trControl = trControl,
     importance = TRUE,
     ntree = 500)
+
+##print(fit_rf)
+plot(varImp(op_rf, scale = TRUE))
 ```
 
- 
+The varImp so that we can see the important features of the random forest in order to see if it compares to the Ordinal Logistic Regression model. Looking at the importance levels once can see that 'prolonged_decelerations' is considered an important feature for Normal and Pathological class but not for Suspect class. 'abnormal_short_var' is the important feature for Suspect. It is interesting though that 'accelerations' is not considered important in comparison to the OLR model. 
+
+
 ```{r rf prediction}
-prediction_rf2 <-predict(fit_rf, test_set)
+prediction_rf2 <-predict(op_rf, test_set)
 rf_conf2<-confusionMatrix(prediction_rf2, test_set$fetal_health)
 rf_acc2 <- rf_conf2$overall['Accuracy']
 rf_final_metrics <- as.data.frame(rf_conf2$byClass[,c(1,8,9)]) %>%
   mutate(Model = 'RF',
          Class = row_number())
-#rf_conf2
+## rf_conf2
 ```
-
 ```{r ggplot varimp, fig.height=5, fig.width=5}
+pCol <- c("#37004D", '#ff8301', '#bf5ccb')
 test_set1<-test_set
 test_set1$prediction_rf2<- prediction_rf2
 p1 = ggplot(test_set1, aes(x = fetal_health, y = prediction_rf2, color = fetal_health)) +
   geom_jitter(size = 3) +
   scale_color_manual(values = pCol)+
-  labs(title = 'RF Accuracy : 0.9355, .mtry= 5')
+  labs(title = 'RF Accuracy : 0.9355, .mtry = 5')
 
-p2=plot(varImp(fit_rf, scale = TRUE))
 ```
-```{r final_plot, fig.height=5, fig.width=10}
-gridExtra::grid.arrange(p1,p2, ncol = 2)
+```{r final_plot}
+p1
 ```
+
+This model gives an accuracy of `r rf_acc2` which is a small increase from the base model but it is an increase. The balanced accuracy increased as well, for the Normal Class is approximately 91.17%, for Suspect is approximately  84.52%, and Pathological is approximately 91.39%. In comparison to the other classes it poorly predicts Suspect, but the prediction for Normal and Pathological are about the same. The optimal $m_{try}$ for this model is 5 which means that 5 features are chosen for each iteration. 
+
+
+#### RF Conclusion 
+
+The optimized model with the removal of nodes ended up being the optimized model, but it was a slight increase from the base model it went from `r rf_acc1` to `r rf_acc2`. Although one may try to find the most optimized model by trying find the best parameters it may not always be the best model depending on the dataset. The best parameters to use for this model was $m_{try}$ and .ntree of the default number of 500. Since the accuracy is somewhat high one can use random forest in order to predict `fetal_health`.  
+
 
 
 ### Model Comparison
