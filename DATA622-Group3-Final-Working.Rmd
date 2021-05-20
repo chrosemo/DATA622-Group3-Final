@@ -523,9 +523,10 @@ First we run the model with the default values. The model includes the same trai
 
 
 ```{r rf base}
-# Define the control
-trControl <- trainControl(method = "cv", number = 10, repeats = 3, search = "grid")
 set.seed(525)
+# Define the control
+trControl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
 # Run the model
 rf_default <- train(fetal_health~.,
     data = train_set,
