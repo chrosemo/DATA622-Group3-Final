@@ -813,27 +813,24 @@ GBM performs best across the board, while OLR performs the worst. Some things to
 * Both SVM and OLR perform poorly when predicting Pathological Fetal Health. GBM and Random Forest perform similarly.  
 
 ### Conclusions and Future Work
-Overall, the GBM model has the best performance with 94% Accuracy, and 98%, 76%, and 80% recall for Normal, Suspect, and Pathological statuses. Some additional things to note:
-
-**Future Work**
-We believe that over- or under- sampling to create a more balanced dataset would likely improve the overall metrics for the dataset, especially for the Ordinal Linear Regression Model. In addition, we feel that including combination features might yield some interesting insights into the data, and potentially increase overall recall. Finally, this work could be expanded to include PCA for feature consolidation and reduction. 
+Overall, the GBM model has the best performance with 94% Accuracy, and 98%, 76%, and 80% recall for Normal, Suspect, and Pathological statuses. Regarding future work, over- or under- sampling would create a more balanced dataset that could likely improve the overall metrics for the dataset, especially for the Ordinal Linear Regression Model. Additionally, including combination features could yield some interesting insights into the data, and potentially increase overall recall. Finally, this work could be expanded to include PCA for feature consolidation and reduction. 
 
 
 ### Works Cited
 
 https://www.kaggle.com/andrewmvd/fetal-health-classification
 
-Ayres de Campos et al. (2000) SisPorto 2.0 A Program for Automated Analysis of Cardiotocograms. J Matern Fetal Med 5:311-318
+Ayres de Campos et al. (2000). *SisPorto 2.0 A Program for Automated Analysis of Cardiotocograms*. J Matern Fetal Med 5:311-318
 
 Boehmke, B. (2018). *Gradient boosting machines*. UC Business Analytics R Programming Guide. Accessed May 15, 2021 from http://uc-r.github.io/gbm_regression.
 
-Hamid Rashkiany. “Support Vector Machine In R: Using SVM To Predict Heart Diseases.” Edureka, 15 May 2020, www.edureka.co/blog/support-vector-machine-in-r/. 
+Kumar Das, S. (2020). *Random Forest Classification explained in detail and developed in R*. TechTarget, Inc. Accessed May 2021 from https://www.datasciencecentral.com/profiles/blogs/random-forest-classification-explained-in-detail-and-developed-in.
 
 Kuhn, M. (2019). *The caret package*. Accessed May 15, 2021, from https://topepo.github.io/caret/.
 
-*R Random Forest Tutorial with Example*.Guru99. from https://www.guru99.com/r-random-forest-tutorial.html
+*R Random Forest Tutorial with Example*. Guru99. Accessed May 2021 from https://www.guru99.com/r-random-forest-tutorial.html.
 
- Sourav Kumar Das. "Random Forest Classification explained in detail and developed in R". TechTarget, Inc., 10 May 2020, https://www.datasciencecentral.com/profiles/blogs/random-forest-classification-explained-in-detail-and-developed-in
+Rashkiany, H. (2020). *Support Vector Machine In R: Using SVM To Predict Heart Diseases*. Edureka. Accessed May 2021 from www.edureka.co/blog/support-vector-machine-in-r/. 
 
 ### Code Appendix
 
